@@ -1,6 +1,6 @@
 {
   "name": "日程规划",
-  "description": "一个干净、优雅的桌面日程与任务管理规划应用，支持日历视图、任务分类、自然语言输入解析、笔记与心情记录。",
+  "description": "一个干净、优雅的桌面日程与任务管理规划应用，支持日历视图、任务分类、笔记与心情记录。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

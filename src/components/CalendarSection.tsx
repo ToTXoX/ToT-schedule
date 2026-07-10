@@ -6,7 +6,7 @@ import {
   Calendar, ChevronLeft, ChevronRight, CheckSquare, Square, Eye, EyeOff,
   Plus, Trash2, Edit2, GripVertical, Smile, Frown, Flame, Heart, Meh,
   AlertTriangle, ArrowUp, ArrowDown, MoveRight, X, Trash, Clock, Bell, Repeat,
-  Check, Eraser
+  Check, Eraser, Star
 } from 'lucide-react';
 
 interface CalendarSectionProps {
@@ -100,6 +100,9 @@ const MOOD_OPTIONS: { emoji: MoodEmoji; char: string; label: string; color: stri
   { emoji: '生气！', char: '😡', label: '生气！', color: 'text-red-700 bg-red-100 border-red-300', hoverColor: 'hover:bg-red-200' },
 ];
 
+const getMoodChar = (emoji: MoodEmoji) =>
+  MOOD_OPTIONS.find(option => option.emoji === emoji)?.char;
+
 export default function CalendarSection({
   categories,
   tasks,
@@ -129,7 +132,7 @@ export default function CalendarSection({
   // Sidebars Visibility Toggles (Persistent via state)
   const [showNotesSection, setShowNotesSection] = useState(true);
   const [showMoodSection, setShowMoodSection] = useState(true);
-  const [showMoodEmojisInMonth, setShowMoodEmojisInMonth] = useState(true);
+  const [showMoodEmojis, setShowMoodEmojis] = useState(true);
   const [uncategorizedVisible, setUncategorizedVisible] = useState<boolean>(() => {
     const saved = localStorage.getItem('planner_uncategorized_visible');
     return saved !== 'false'; // default to true
@@ -856,6 +859,12 @@ export default function CalendarSection({
   const todayMood = getMoodForDate(selectedDateStr);
 
   const handleUpdateTodayMoodEmoji = (emoji: MoodEmoji) => {
+    if (todayMood.emoji === emoji) {
+      onUpdateMood(selectedDateStr, '', '');
+      setTodayMoodText('');
+      setIsEditingTodayMoodText(false);
+      return;
+    }
     onUpdateMood(selectedDateStr, emoji, todayMood.text);
   };
 
@@ -1254,10 +1263,10 @@ export default function CalendarSection({
   };
 
   return (
-    <div id="calendar-section-root" className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start lg:items-stretch">
+    <div id="calendar-section-root" className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full items-start lg:items-stretch">
       
       {/* LEFT: Core Calendar Workspace (9 cols) */}
-      <div id="calendar-workspace-panel" className="lg:col-span-9 bg-white rounded-3xl p-5 border border-neutral-100 shadow-sm flex flex-col space-y-4">
+      <div id="calendar-workspace-panel" className="lg:col-span-9 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4">
         
         {/* Calendar Header with Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-100">
@@ -1301,17 +1310,15 @@ export default function CalendarSection({
 
           {/* Toggle View Mode (3-Day / Week / Month) */}
           <div className="flex items-center space-x-2 self-end sm:self-auto">
-            {viewMode === 'month' && (
-              <button
-                type="button"
-                onClick={() => setShowMoodEmojisInMonth(!showMoodEmojisInMonth)}
-                className="flex items-center text-xs font-bold transition cursor-pointer bg-neutral-100/55 hover:bg-neutral-100 border border-neutral-200/40 px-2.5 py-1.5 rounded-xl text-neutral-600 hover:text-neutral-800"
-                title={showMoodEmojisInMonth ? '隐藏每月心情' : '显示每月心情'}
-              >
-                {showMoodEmojisInMonth ? <Smile className="w-3.5 h-3.5 mr-1 text-amber-500 fill-amber-100" /> : <Smile className="w-3.5 h-3.5 mr-1 text-neutral-400" />}
-                <span>心情</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowMoodEmojis(!showMoodEmojis)}
+              className="flex items-center text-xs font-bold transition cursor-pointer bg-neutral-100/55 hover:bg-neutral-100 border border-neutral-200/40 px-2.5 py-1.5 rounded-xl text-neutral-600 hover:text-neutral-800"
+              title={showMoodEmojis ? '隐藏日期卡心情' : '显示日期卡心情'}
+            >
+              {showMoodEmojis ? <Smile className="w-3.5 h-3.5 mr-1 text-amber-500 fill-amber-100" /> : <Smile className="w-3.5 h-3.5 mr-1 text-neutral-400" />}
+              <span>心情</span>
+            </button>
             <div className="bg-neutral-100/55 p-1 rounded-xl border border-neutral-200/40 flex space-x-1">
               <button
                 id="btn-view-3day"
@@ -1344,7 +1351,7 @@ export default function CalendarSection({
           const isAllSelected = categories.every(cat => cat.visible !== false) && uncategorizedVisible;
           const isAnySelected = categories.some(cat => cat.visible !== false) || uncategorizedVisible;
           return (
-            <div ref={filterContainerRef} className="flex flex-wrap items-center gap-2 py-1 text-xs text-neutral-600 bg-transparent">
+            <div ref={filterContainerRef} className="calendar-filter-bar flex flex-wrap items-center gap-2 py-1 text-xs text-neutral-600 bg-transparent">
               <span className="text-neutral-400 mr-1 text-[11px] font-bold">
                 过滤:
               </span>
@@ -1394,73 +1401,74 @@ export default function CalendarSection({
                 type="button"
                 onClick={handleClearAllFilters}
                 className="p-1.5 rounded-xl border border-red-200/50 bg-red-50 text-red-500 hover:bg-red-100 hover:border-red-300 hover:text-red-600 transition cursor-pointer shadow-sm hover:scale-[1.05] flex items-center justify-center"
-                title="�          {/* A. THREE DAY VIEW */}
+                title="清空（取消勾选所有分类）"
+              >
+                <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* RENDER ACTIVE VIEW */}
+        <div id="calendar-grid" ref={calendarGridRef} className="flex-1">
+
+          {/* A. THREE DAY VIEW */}
           {viewMode === 'three-day' && (
-            <div className="relative flex flex-col bg-neutral-200/40 rounded-2xl border border-neutral-200/50 shadow-sm min-h-[380px] overflow-hidden group/calendar select-none">
-              {/* Background columns overlay (Month view grid style) */}
-              <div className="absolute inset-0 grid grid-cols-3 gap-[1px] bg-neutral-200/40 pointer-events-none z-0">
-                {getThreeDays().map((day, dIdx) => {
-                  const isToday = day.dateStr === todayStr;
-                  const isSelected = day.dateStr === selectedDateStr;
-                  return (
-                    <div
-                      key={dIdx}
-                      className={`h-full transition-all duration-300 ${
-                        isSelected
-                          ? 'bg-blue-50/15'
-                          : isToday
-                            ? 'bg-blue-50/5'
-                            : 'bg-white'
-                      }`}
-                    />
-                  );
-                })}
+            <div className="three-day-cards relative flex flex-col min-h-[380px] overflow-visible group/calendar select-none">
+              {/* Independent day card surfaces */}
+              <div className="absolute inset-0 grid grid-cols-3 gap-3 pointer-events-none z-0">
+                {getThreeDays().map(day => (
+                  <div
+                    key={day.dateStr}
+                    className="h-full rounded-2xl border bg-white border-neutral-200/80 shadow-[0_4px_18px_rgba(25,32,48,0.035)]"
+                  />
+                ))}
               </div>
 
               {/* Foreground scrollable container / content */}
-              <div className="relative z-10 flex flex-col w-full flex-1 select-none">
+              <div className="relative flex flex-col w-full flex-1 select-none">
                 {/* 1. Date Header Grid */}
-                <div className="grid grid-cols-3 gap-[1px] bg-neutral-200/40 w-full border-b border-neutral-200/40">
+                <div className="grid grid-cols-3 gap-3 w-full">
                   {getThreeDays().map((day, dIdx) => {
                     const isToday = day.dateStr === todayStr;
                     const isSelected = day.dateStr === selectedDateStr;
+                    const dayMood = getMoodForDate(day.dateStr);
                     return (
                       <div 
                         key={dIdx} 
                         onClick={() => setSelectedDateStr(day.dateStr)}
-                        className={`flex items-center justify-between gap-1.5 px-4 py-3 cursor-pointer transition-all duration-200 ${
+                        className={`three-day-date-header flex items-center justify-between gap-1.5 px-4 py-3 rounded-t-2xl border-b cursor-pointer transition-all duration-200 ${
                           isSelected
-                            ? 'bg-blue-50/20'
-                            : isToday
-                              ? 'bg-blue-50/10'
-                              : 'bg-white hover:bg-neutral-50/50'
+                            ? 'three-day-date-selected'
+                            : 'bg-transparent border-neutral-100 hover:bg-neutral-50/60'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 overflow-hidden">
                           <h4 className={`text-xs sm:text-sm font-extrabold truncate ${
                             isSelected
-                              ? 'text-blue-700'
+                              ? 'text-neutral-900'
                               : isToday
                                 ? 'text-black'
                                 : 'text-neutral-800'
                           }`}>
                             {getDayName(day.dateObj)}
                           </h4>
-                          {day.label === '今日' && (
-                            <span className="text-[9px] font-extrabold text-white bg-blue-500 px-1.5 py-0.5 rounded-md flex-shrink-0">
-                              今日
+                          {showMoodEmojis && dayMood.emoji && (
+                            <span className="day-card-mood" title={`当日心情：${dayMood.emoji}`}>
+                              {getMoodChar(dayMood.emoji)}
                             </span>
                           )}
                         </div>
-                        <span className={`text-[10px] w-5 h-5 leading-5 text-center rounded-full flex-shrink-0 transition-all ${
-                          isSelected
-                            ? 'bg-blue-600 text-white font-mono font-bold'
-                            : isToday
-                              ? 'bg-black text-white font-mono font-bold'
-                              : 'bg-neutral-200 text-neutral-600 font-medium'
-                        }`}>
-                          {day.dateStr.split('-')[2]}
-                        </span>
+                        {isToday ? (
+                          <span className="today-star-date flex-shrink-0">
+                            <Star />
+                            <span>{day.dateStr.split('-')[2]}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] w-5 h-5 leading-5 text-center rounded-full flex-shrink-0 transition-all bg-neutral-200 text-neutral-600 font-medium">
+                            {day.dateStr.split('-')[2]}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -1474,9 +1482,9 @@ export default function CalendarSection({
                   const rows = layoutMultiDayTasks(activeMulti, activeDates);
                   if (activeMulti.length === 0) return null;
                   return (
-                    <div className="space-y-1.5 py-3 w-full z-20 border-b border-neutral-200/40 bg-white/50 px-2">
+                    <div className="relative z-30 space-y-1.5 py-3 w-full px-2">
                       {rows.map((rowTasks, rIdx) => (
-                        <div key={rIdx} className="grid grid-cols-3 gap-0 h-7.5 relative w-full">
+                        <div key={rIdx} className="grid grid-cols-3 gap-3 h-7.5 relative w-full">
                           {rowTasks.map(task => {
                             const isResizingThis = resizingTask && resizingTask.id === task.id;
                             let renderStartDate = task.date || '';
@@ -1587,10 +1595,9 @@ export default function CalendarSection({
                 })()}
 
                 {/* 3. Task lists columns */}
-                <div className="grid grid-cols-3 gap-[1px] bg-neutral-200/40 w-full flex-1">
+                <div className="grid grid-cols-3 gap-3 w-full flex-1">
                   {getThreeDays().map((day, dIdx) => {
                     const dayTasks = visibleTasks.filter(t => isTaskOnDay(t, day.dateStr) && !isMultiDayForRender(t)).sort((a,b) => a.order - b.order);
-                    const isSelected = day.dateStr === selectedDateStr;
                     return (
                       <div
                         key={day.dateStr}
@@ -1598,11 +1605,6 @@ export default function CalendarSection({
                         onDrop={(e) => handleTaskDropOnDate(e, day.dateStr)}
                         onClick={() => setSelectedDateStr(day.dateStr)}
                         className="flex flex-col p-4 transition min-h-[260px] cursor-pointer flex-1 bg-transparent"
-                      >   onDrop={(e) => handleTaskDropOnDate(e, day.dateStr)}
-                        onClick={() => setSelectedDateStr(day.dateStr)}
-                        className={`flex flex-col p-3 rounded-xl transition min-h-[260px] cursor-pointer flex-1 ${
-                          isSelected ? 'bg-blue-50/5' : ''
-                        }`}
                       >
                         <div className="space-y-1.5 flex-1 overflow-visible">
                           {dayTasks.map((task, index) => {
@@ -1670,6 +1672,19 @@ export default function CalendarSection({
                 </div>
               </div>
 
+              {/* Selection outline stays above each card's internal separators. */}
+              <div className="absolute inset-0 grid grid-cols-3 gap-3 pointer-events-none z-20">
+                {getThreeDays().map(day => (
+                  <div
+                    key={day.dateStr}
+                    className={day.dateStr === selectedDateStr
+                      ? 'h-full rounded-2xl border-2 border-blue-500 shadow-[0_0_0_1px_rgba(65,105,225,0.10)]'
+                      : 'h-full'
+                    }
+                  />
+                ))}
+              </div>
+
               {/* Left Hover Navigation Button */}
               <button 
                 type="button"
@@ -1711,33 +1726,38 @@ export default function CalendarSection({
                 <div className="relative z-10 grid grid-cols-7 gap-2 w-full p-2.5 items-start select-none">
                   {days.map((day, dIdx) => {
                     const isToday = day.dateStr === todayStr;
+                    const dayMood = getMoodForDate(day.dateStr);
                     const dayTasks = visibleTasks.filter(t => isTaskOnDay(t, day.dateStr) && !isMultiDayForRender(t)).sort((a,b) => a.order - b.order);
                     return (
                       <div
                         key={day.dateStr}
                         onDragOver={handleTaskDragOver}
                         onDrop={(e) => handleTaskDropOnDate(e, day.dateStr)}
-                        className={`flex flex-col justify-between p-3.5 rounded-xl transition min-h-[300px] h-fit border ${
-                          isToday 
-                            ? 'bg-blue-50/25 border-blue-400 shadow-md ring-1 ring-blue-400/10' 
-                            : 'bg-white border-neutral-100/80 shadow-sm'
-                        }`}
+                        className="flex flex-col justify-between p-3.5 rounded-xl transition min-h-[300px] h-fit border bg-white border-neutral-100/80 shadow-sm"
                       >
                         {/* 1. Date Header */}
                         <div className="text-center pb-2 border-b border-neutral-100/80 mb-2 flex flex-col items-center justify-center h-[52px]">
-                          <span className={`text-[9px] block font-bold ${isToday ? 'text-blue-600 font-extrabold' : 'text-neutral-400'} leading-none mb-1`}>
-                            {day.dayName}
-                          </span>
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <span className={`text-[9px] block font-bold ${isToday ? 'text-blue-600 font-extrabold' : 'text-neutral-400'} leading-none`}>
+                              {day.dayName}
+                            </span>
+                            {showMoodEmojis && dayMood.emoji && (
+                              <span className="day-card-mood" title={`当日心情：${dayMood.emoji}`}>
+                                {getMoodChar(dayMood.emoji)}
+                              </span>
+                            )}
+                          </div>
                           <span 
                             onClick={() => {
                               setBaseDate(day.dateObj);
                               setSelectedDateStr(day.dateStr);
                               setViewMode('three-day');
                             }}
-                            className={`text-xs font-extrabold inline-block w-6 h-6 leading-6 rounded-full cursor-pointer hover:opacity-80 transition ${isToday ? 'bg-blue-500 text-white shadow-sm' : 'text-neutral-700 hover:bg-neutral-200/40'}`}
+                            className={`cursor-pointer hover:opacity-80 transition ${isToday ? 'today-star-date' : 'text-xs font-extrabold inline-block w-6 h-6 leading-6 rounded-full text-neutral-700 hover:bg-neutral-200/40'}`}
                             title="点击查看此日三日视图"
                           >
-                            {day.dayNum}
+                            {isToday && <Star />}
+                            <span>{day.dayNum}</span>
                           </span>
                         </div>
 
@@ -1992,7 +2012,7 @@ export default function CalendarSection({
 
                             let numClass = "";
                             if (isToday) {
-                              numClass = "bg-blue-500 text-white shadow-sm font-extrabold";
+                              numClass = "today-star-date";
                             } else if (!isCurrentMonth) {
                               numClass = "text-neutral-300/80 font-normal";
                             } else if (isPast) {
@@ -2014,7 +2034,7 @@ export default function CalendarSection({
                                     : day.dateStr < todayStr 
                                       ? 'bg-neutral-50/70' 
                                       : 'bg-white'
-                                } ${isToday ? 'bg-blue-50/10 ring-1 ring-blue-500/20 z-10' : ''}`}
+                                }`}
                               >
                                 {/* Header (Date & Mood) */}
                                 <div className="flex items-center justify-between w-full h-6 z-10">
@@ -2024,13 +2044,14 @@ export default function CalendarSection({
                                       setSelectedDateStr(day.dateStr);
                                       setViewMode('three-day');
                                     }}
-                                    className={`text-xs w-5 h-5 leading-5 text-center rounded-full cursor-pointer hover:opacity-80 transition-all ${numClass}`}
+                                    className={`cursor-pointer hover:opacity-80 transition-all ${isToday ? '' : 'text-xs w-5 h-5 leading-5 text-center rounded-full'} ${numClass}`}
                                     title="点击查看此日三日视图"
                                   >
-                                    {day.dayNum}
+                                    {isToday && <Star />}
+                                    <span>{day.dayNum}</span>
                                   </span>
 
-                                  {showMoodEmojisInMonth && (
+                                  {showMoodEmojis && (
                                     <div className="relative">
                                       {dayMood.emoji ? (
                                         <button
@@ -2066,7 +2087,8 @@ export default function CalendarSection({
                                               type="button"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                onUpdateMood(day.dateStr, opt.emoji, dayMood.text);
+                                                const shouldClear = dayMood.emoji === opt.emoji;
+                                                onUpdateMood(day.dateStr, shouldClear ? '' : opt.emoji, shouldClear ? '' : dayMood.text);
                                                 setActiveMoodPickerDate(null);
                                               }}
                                               className="text-base hover:scale-130 transition cursor-pointer"
@@ -2304,7 +2326,7 @@ export default function CalendarSection({
           <div className="space-y-4">
             
             {/* Notes Section */}
-            <div className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-3">
+            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3">
               <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100">
                 <span className="text-xs font-extrabold text-neutral-800 flex items-center">
                   {selectedDateStr === todayStr ? '今日笔记' : `${selectedDateStr.substring(5)} 笔记`}
@@ -2389,7 +2411,7 @@ export default function CalendarSection({
             </div>
 
             {/* Mood Section */}
-            <div className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-3">
+            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3">
               <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100">
                 <span className="text-xs font-extrabold text-neutral-800 flex items-center">
                   {selectedDateStr === todayStr ? '今日心情' : `${selectedDateStr.substring(5)} 心情`}
@@ -2503,7 +2525,7 @@ export default function CalendarSection({
           return (
             <div 
               style={isLargeScreen ? { maxHeight: gridHeight } : {}}
-              className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-4 h-full flex-1 min-h-[400px]"
+              className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4 h-full flex-1 min-h-[400px]"
             >
               <h3 className="text-xs font-bold text-neutral-800 pb-1.5 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
                 <span>本周日程</span>
@@ -2513,21 +2535,21 @@ export default function CalendarSection({
               <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
                 {/* 1. Unscheduled Tasks (待安排) */}
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between bg-amber-50/80 border border-amber-100/80 px-2.5 py-1.5 rounded-xl">
-                    <span className="text-[11px] font-black text-amber-800 flex items-center">
-                      <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5 animate-pulse" />
+                  <div className="flex items-center justify-between bg-neutral-50/80 border border-neutral-200/70 px-2.5 py-1.5 rounded-xl">
+                    <span className="text-[11px] font-semibold text-neutral-700 flex items-center">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-2" />
                       待安排日程
                     </span>
                     <div className="flex items-center space-x-1.5">
                       <button
                         type="button"
                         onClick={() => setQuickAddUnscheduledWeek(startOfWeekStr)}
-                        className="p-1 text-amber-800 hover:text-amber-600 hover:bg-amber-100/50 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                        className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200/60 rounded-lg transition-all cursor-pointer flex items-center justify-center"
                         title="新增待安排日程"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
                         {weekUnscheduled.length}
                       </span>
                     </div>
@@ -2539,7 +2561,7 @@ export default function CalendarSection({
                       onDragOver={handleTaskDragOver}
                       onDrop={(e) => handleUnscheduledContainerDrop(e, 'week')}
                       onClick={() => setQuickAddUnscheduledWeek(startOfWeekStr)}
-                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-amber-300 rounded-xl bg-neutral-50/40 hover:bg-amber-50/10 transition-all text-[10px] text-neutral-400 hover:text-amber-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[10px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
                     >
                       像雪一样白
                     </button>
@@ -2557,10 +2579,7 @@ export default function CalendarSection({
                           onDragOver={handleTaskDragOver}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'week')}
                           onClick={() => openEditTaskModal(task)}
-                          style={{
-                            borderLeft: getTaskStyle(task).borderLeft,
-                          }}
-                          className="p-2.5 bg-white hover:bg-amber-50/30 rounded-xl border border-amber-200/80 shadow-sm text-xs cursor-grab hover:shadow transition relative group/item"
+                          className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -2580,17 +2599,21 @@ export default function CalendarSection({
                                   {isTaskCompletedOnDay(task, todayStr) && <Check className="w-2.5 h-2.5 stroke-[3] text-white" />}
                                 </div>
                               </button>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-300 flex-shrink-0" />
                               <span className={`font-semibold text-neutral-800 truncate ${task.completed ? 'line-through text-neutral-400 opacity-60' : ''}`}>
                                 {task.title}
                               </span>
                             </div>
-                            <GripVertical className="w-3.5 h-3.5 text-neutral-300 group-hover/item:text-amber-500 flex-shrink-0 cursor-grab" />
+                            <GripVertical className="w-3.5 h-3.5 text-neutral-300 group-hover/item:text-neutral-500 flex-shrink-0 cursor-grab" />
                           </div>
 
                           <div className="flex items-center justify-between mt-1.5">
-                            <span className="text-[8px] bg-neutral-100 text-neutral-500 px-1.5 py-0.2 rounded font-medium">
-                              {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="unscheduled-status-badge text-[8px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
+                              <span className="text-[8px] bg-white/80 text-neutral-500 border border-neutral-200/70 px-1.5 py-0.5 rounded font-medium">
+                                {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
+                              </span>
+                            </div>
                             
                             <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
                               task.urgency === 'high' ? 'bg-red-100 text-red-700' :
@@ -2698,7 +2721,7 @@ export default function CalendarSection({
           return (
             <div 
               style={isLargeScreen ? { maxHeight: gridHeight } : {}}
-              className="bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-4 h-full flex-1 min-h-[400px]"
+              className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4 h-full flex-1 min-h-[400px]"
             >
               <h3 className="text-xs font-bold text-neutral-800 pb-1.5 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
                 <span>本月日程</span>
@@ -2708,21 +2731,21 @@ export default function CalendarSection({
               <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
                 {/* 1. Unscheduled Tasks (待安排) */}
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between bg-amber-50/80 border border-amber-100/80 px-2.5 py-1.5 rounded-xl">
-                    <span className="text-[11px] font-black text-amber-800 flex items-center">
-                      <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5 animate-pulse" />
+                  <div className="flex items-center justify-between bg-neutral-50/80 border border-neutral-200/70 px-2.5 py-1.5 rounded-xl">
+                    <span className="text-[11px] font-semibold text-neutral-700 flex items-center">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-2" />
                       待安排日程
                     </span>
                     <div className="flex items-center space-x-1.5">
                       <button
                         type="button"
                         onClick={() => setQuickAddUnscheduledMonth(startOfMonthStr.substring(0, 7))}
-                        className="p-1 text-amber-800 hover:text-amber-600 hover:bg-amber-100/50 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                        className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200/60 rounded-lg transition-all cursor-pointer flex items-center justify-center"
                         title="新增待安排日程"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
                         {monthUnscheduled.length}
                       </span>
                     </div>
@@ -2734,7 +2757,7 @@ export default function CalendarSection({
                       onDragOver={handleTaskDragOver}
                       onDrop={(e) => handleUnscheduledContainerDrop(e, 'month')}
                       onClick={() => setQuickAddUnscheduledMonth(startOfMonthStr.substring(0, 7))}
-                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-amber-300 rounded-xl bg-neutral-50/40 hover:bg-amber-50/10 transition-all text-[10px] text-neutral-400 hover:text-amber-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[10px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
                     >
                       像雪一样白
                     </button>
@@ -2752,10 +2775,7 @@ export default function CalendarSection({
                           onDragOver={handleTaskDragOver}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'month')}
                           onClick={() => openEditTaskModal(task)}
-                          style={{
-                            borderLeft: getTaskStyle(task).borderLeft,
-                          }}
-                          className="p-2.5 bg-white hover:bg-amber-50/30 rounded-xl border border-amber-200/80 shadow-sm text-xs cursor-grab hover:shadow transition relative group/item"
+                          className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -2775,17 +2795,21 @@ export default function CalendarSection({
                                   {isTaskCompletedOnDay(task, todayStr) && <Check className="w-2.5 h-2.5 stroke-[3] text-white" />}
                                 </div>
                               </button>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-300 flex-shrink-0" />
                               <span className={`font-semibold text-neutral-800 truncate ${task.completed ? 'line-through text-neutral-400 opacity-60' : ''}`}>
                                 {task.title}
                               </span>
                             </div>
-                            <GripVertical className="w-3.5 h-3.5 text-neutral-300 group-hover/item:text-amber-500 flex-shrink-0 cursor-grab" />
+                            <GripVertical className="w-3.5 h-3.5 text-neutral-300 group-hover/item:text-neutral-500 flex-shrink-0 cursor-grab" />
                           </div>
 
                           <div className="flex items-center justify-between mt-1.5">
-                            <span className="text-[8px] bg-neutral-100 text-neutral-500 px-1.5 py-0.2 rounded font-medium">
-                              {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="unscheduled-status-badge text-[8px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
+                              <span className="text-[8px] bg-white/80 text-neutral-500 border border-neutral-200/70 px-1.5 py-0.5 rounded font-medium">
+                                {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
+                              </span>
+                            </div>
                             
                             <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
                               task.urgency === 'high' ? 'bg-red-100 text-red-700' :

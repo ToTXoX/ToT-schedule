@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Category, Task, Subtask, Note, Mood, MoodEmoji, ParsedTaskResult 
+  Category, Task, Subtask, Note, Mood, MoodEmoji
 } from './types';
 import TaskLibrary from './components/TaskLibrary';
 import CalendarSection from './components/CalendarSection';
 import { 
-  Calendar as CalendarIcon, ListTodo, Sparkles, Clock, Bell, Settings, Check, 
+  Calendar as CalendarIcon, ListTodo, Clock, Bell, Settings, Check,
   HelpCircle, Eye, RefreshCw, Layers, ShieldAlert, ArrowRight, Heart
 } from 'lucide-react';
 
@@ -76,7 +76,7 @@ const DEFAULT_TASKS: Task[] = [
 
 const DEFAULT_NOTES: Note[] = [
   { id: 'note-1', content: '阳台的花花草草记得每隔两天浇水一次。', date: '2026-07-06', order: 0, visible: true },
-  { id: 'note-2', content: '今天规划核心在于跑通 Gemini 自然语言日程解析接口。', date: '2026-07-06', order: 1, visible: true }
+  { id: 'note-2', content: '今天规划核心在于整理本周日程与任务优先级。', date: '2026-07-06', order: 1, visible: true }
 ];
 
 const DEFAULT_MOODS: Mood[] = [
@@ -277,22 +277,6 @@ export default function App() {
     setTasks(newTasks);
   };
 
-  // AI-parsed task callback
-  const handleParsedTaskAdded = (parsed: ParsedTaskResult) => {
-    const newTask: Task = {
-      id: `task-${Math.random().toString(36).substring(2, 9)}`,
-      title: parsed.title,
-      completed: false,
-      date: parsed.date,
-      time: parsed.time,
-      categoryId: parsed.categoryId,
-      urgency: parsed.urgency || 'low',
-      subtasks: [],
-      order: tasks.length
-    };
-    setTasks(prev => [...prev, newTask]);
-  };
-
   // Notes
   const handleAddNote = (content: string, date: string) => {
     const newNote: Note = {
@@ -347,24 +331,24 @@ export default function App() {
   const urgentTasks = tasks.filter(t => t.urgency === 'high' && !t.completed);
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] font-sans antialiased text-neutral-800 p-3 sm:p-5 flex flex-col justify-between">
+    <div className="app-shell min-h-screen font-sans antialiased text-neutral-800 flex flex-col justify-between">
       
       {/* 1. Main Windows App layout */}
-      <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col space-y-4">
+      <main className="app-main w-full mx-auto flex-1 flex flex-col">
         
         {/* Core desktop window with Frosted Sidebar and Workspace */}
-        <div className="flex-1 bg-white/90 backdrop-blur-md border border-neutral-200/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        <div className="app-window flex-1 overflow-hidden flex flex-col">
           
           {/* Windows Header Tab Selector */}
-          <div className="bg-white px-6 py-4 border-b border-neutral-100 flex items-center justify-between relative z-50">
-            <div className="flex items-center space-x-3 sm:space-x-4">
+          <header className="app-header px-4 sm:px-6 flex items-center justify-between relative z-50">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               {/* User Avatar Section */}
-              <div className="flex items-center space-x-2 bg-neutral-100/60 pl-1.5 pr-2.5 py-1 rounded-2xl border border-neutral-200/40 relative">
+              <div className="user-chip flex items-center space-x-2 pl-1.5 pr-2.5 py-1 rounded-xl relative">
                 {/* Emoji Avatar Button */}
                 <button
                   type="button"
                   onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                  className="w-6 h-6 rounded-xl bg-white shadow-sm flex items-center justify-center hover:scale-110 active:scale-95 transition cursor-pointer text-xs select-none"
+                  className="w-7 h-7 rounded-lg bg-white flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer text-sm select-none"
                   title="点击更换头像"
                 >
                   {userAvatar}
@@ -431,34 +415,34 @@ export default function App() {
               </div>
 
               {/* Tab Selector */}
-              <div className="flex items-center space-x-1.5 bg-neutral-100/60 p-1 rounded-2xl border border-neutral-200/40">
+              <nav className="app-tabs flex items-center gap-1 p-1 rounded-xl">
                 <button
                   id="tab-btn-calendar"
                   onClick={() => setActiveTab('calendar')}
-                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'calendar' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                  className={`app-tab flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${activeTab === 'calendar' ? 'app-tab-active' : ''}`}
                 >
-                  <CalendarIcon className="w-4 h-4 text-blue-500" />
+                  <CalendarIcon className="w-4 h-4" />
                   <span>日历</span>
                 </button>
                 <button
                   id="tab-btn-tasks"
                   onClick={() => setActiveTab('tasks')}
-                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'tasks' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                  className={`app-tab flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${activeTab === 'tasks' ? 'app-tab-active' : ''}`}
                 >
-                  <ListTodo className="w-4 h-4 text-purple-500" />
+                  <ListTodo className="w-4 h-4" />
                   <span>任务库</span>
                 </button>
-              </div>
+              </nav>
             </div>
 
             {/* Right Info: Clock, Notification Trigger */}
-            <div className="flex items-center space-x-3.5 sm:space-x-4 relative text-xs text-neutral-600">
+            <div className="flex items-center gap-2 sm:gap-4 relative text-xs text-neutral-600">
               
               {/* Notifications Indicator */}
               <button
                 id="btn-bell-toggle"
                 onClick={() => setShowNotificationCenter(!showNotificationCenter)}
-                className="p-1.5 rounded-lg hover:bg-neutral-100/80 text-neutral-500 transition relative focus:outline-none cursor-pointer"
+                className="header-icon-button p-2 rounded-lg text-neutral-500 transition relative focus:outline-none cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {todayTasks.length > 0 && (
@@ -545,10 +529,10 @@ export default function App() {
               </AnimatePresence>
 
             </div>
-          </div>
+          </header>
 
           {/* Dynamic Screen Container */}
-          <div className="flex-1 p-5 md:p-6 overflow-y-auto min-h-[500px]">
+          <div className="app-content flex-1 p-4 md:p-5 overflow-y-auto min-h-[500px]">
             <AnimatePresence mode="wait">
               {activeTab === 'calendar' ? (
                 <motion.div
@@ -610,9 +594,9 @@ export default function App() {
       </main>
 
       {/* 3. Footer */}
-      <footer className="max-w-7xl w-full mx-auto text-center text-[10px] text-neutral-400 pt-5 pb-2 flex flex-col sm:flex-row items-center justify-between select-none">
+      <footer className="app-footer w-full mx-auto text-center text-[10px] pt-4 pb-1 flex flex-col sm:flex-row items-center justify-between select-none">
         <div>
-          © 2026 iSchedule Applet. Inspired by Apple Reminders & Calendar.
+          © 2026 日程规划
         </div>
         <div className="flex items-center space-x-1.5 mt-2 sm:mt-0 text-neutral-400">
           <span>用</span>

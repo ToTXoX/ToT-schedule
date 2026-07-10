@@ -51,11 +51,3 @@ export interface Mood {
   text: string;
   visible: boolean;
 }
-
-export interface ParsedTaskResult {
-  title: string;
-  date?: string; // YYYY-MM-DD
-  time?: string; // HH:MM
-  categoryId?: string;
-  urgency?: Urgency;
-}

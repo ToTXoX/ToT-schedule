@@ -636,10 +636,10 @@ export default function TaskLibrary({
   const currentCatDetails = getSelectedCategoryDetails();
 
   return (
-    <div id="task-library-root" className="grid grid-cols-1 md:grid-cols-12 gap-6 h-full items-start">
+    <div id="task-library-root" className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full items-start">
       
       {/* 1. Category Sidebar (widen on smaller screen sizes to show full names) */}
-      <div id="category-sidebar" className="col-span-12 md:col-span-5 lg:col-span-4 bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-4">
+      <div id="category-sidebar" className="surface-panel col-span-12 md:col-span-5 lg:col-span-4 bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4">
         
         <div className="flex items-center justify-between">
           <h3 className="font-sans text-base font-semibold text-neutral-800 flex items-center">
@@ -897,7 +897,7 @@ export default function TaskLibrary({
       </div>
 
       {/* 2. Task List Panel (narrow on smaller screen sizes to accommodate wider sidebar) */}
-      <div id="task-workspace" className="col-span-12 md:col-span-7 lg:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 shadow-sm flex flex-col space-y-4">
+      <div id="task-workspace" className="surface-panel col-span-12 md:col-span-7 lg:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4">
         
         {/* Workspace Header */}
         <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
@@ -990,7 +990,7 @@ export default function TaskLibrary({
                     if (isExpanded || isSortedByTime) return;
                     handleTaskDrop(e, idx);
                   }}
-                  className={`border rounded-xl overflow-hidden transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 shadow-sm hover:border-neutral-300'} ${draggedTaskIndex === idx ? 'opacity-30 border-neutral-200 bg-neutral-50/50' : ''}`}
+                  className={`task-card border rounded-xl overflow-hidden transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 hover:border-neutral-300'} ${draggedTaskIndex === idx ? 'opacity-30 border-neutral-200 bg-neutral-50/50' : ''}`}
                 >
                   {/* Task Header */}
                   <div 
