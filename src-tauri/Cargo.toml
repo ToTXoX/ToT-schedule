@@ -1,0 +1,24 @@
+[package]
+name = "tot-schedule"
+version = "0.1.0"
+description = "轻量本地日程与任务管理应用"
+authors = ["ToT"]
+edition = "2021"
+
+[lib]
+name = "tot_schedule_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = true

@@ -51,3 +51,13 @@ export interface Mood {
   text: string;
   visible: boolean;
 }
+
+export interface PlannerState {
+  schemaVersion: 1;
+  categories: Category[];
+  tasks: Task[];
+  notes: Note[];
+  moods: Mood[];
+  userName: string;
+  userAvatar: string;
+}

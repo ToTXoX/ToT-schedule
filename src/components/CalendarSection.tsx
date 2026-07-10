@@ -1263,10 +1263,10 @@ export default function CalendarSection({
   };
 
   return (
-    <div id="calendar-section-root" className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full items-start lg:items-stretch">
+    <div id="calendar-section-root" className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full items-start lg:items-stretch min-w-0">
       
       {/* LEFT: Core Calendar Workspace (9 cols) */}
-      <div id="calendar-workspace-panel" className="lg:col-span-9 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4">
+      <div id="calendar-workspace-panel" className="lg:col-span-9 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4 min-w-0">
         
         {/* Calendar Header with Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-100">
@@ -1814,10 +1814,11 @@ export default function CalendarSection({
                             e.stopPropagation();
                             setQuickAddTaskDate(day.dateStr);
                           }}
-                          className="mt-2 w-full py-1 border border-dashed border-neutral-200 rounded-lg text-[9px] font-bold text-neutral-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/10 transition flex items-center justify-center cursor-pointer"
+                          className="mt-2 w-full py-1 border border-dashed border-neutral-200 rounded-lg text-[9px] font-bold text-neutral-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/10 transition flex items-center justify-center cursor-pointer whitespace-nowrap"
+                          title="添加任务"
                         >
-                          <Plus className="w-2.5 h-2.5 mr-0.5" />
-                          加任务
+                          <Plus className="w-2.5 h-2.5 xl:mr-0.5" />
+                          <span className="hidden xl:inline">加任务</span>
                         </button>
                       </div>
                     );
@@ -1889,28 +1890,34 @@ export default function CalendarSection({
                                     onClick={(e) => e.stopPropagation()}
                                   />
 
-                                  <div className="flex items-center space-x-1.5 overflow-hidden flex-1 mr-1 pl-1">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleTaskCompletionOnDay(task, todayStr);
-                                      }}
-                                      className="transition relative z-30 flex-shrink-0 focus:outline-none cursor-pointer"
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleTaskCompletionOnDay(task, todayStr);
+                                    }}
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 z-30 opacity-0 group-hover:opacity-100 transition focus:outline-none cursor-pointer"
+                                    title={isCompleted ? '标记为未完成' : '标记为已完成'}
+                                  >
+                                    <div className={`w-3 h-3 rounded-full border transition flex items-center justify-center ${
+                                      isCompleted 
+                                        ? 'bg-blue-500 border-blue-500 text-white' 
+                                        : 'bg-white border-neutral-300 group-hover:border-neutral-400'
+                                    }`}>
+                                      {isCompleted && <Check className="w-2 h-2 stroke-[3.5] text-white" />}
+                                    </div>
+                                  </button>
+
+                                  <div className="min-w-0 flex-1 overflow-hidden px-1.5">
+                                    <span
+                                      className={`block w-full font-medium tracking-tight text-[10px] truncate text-center ${isCompleted ? 'line-through text-neutral-400' : ''}`}
+                                      style={{ color: customStyle.color }}
+                                      title={task.title}
                                     >
-                                      <div className={`w-3 h-3 rounded-full border transition flex items-center justify-center ${
-                                        isCompleted 
-                                          ? 'bg-blue-500 border-blue-500 text-white' 
-                                          : 'bg-white border-neutral-300 group-hover:border-neutral-400'
-                                      }`}>
-                                        {isCompleted && <Check className="w-2 h-2 stroke-[3.5] text-white" />}
-                                      </div>
-                                    </button>
-                                    <span className={`font-medium tracking-tight text-[10px] truncate ${isCompleted ? 'line-through text-neutral-400' : ''}`} style={{ color: customStyle.color }}>
                                       {task.title}
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-200 flex-shrink-0 pr-1 relative z-30">
+                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-200 z-30">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); adjustTaskEndDate(task, -1); }}
                                       className="w-3.5 h-3.5 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[9px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
@@ -2319,14 +2326,14 @@ export default function CalendarSection({
       </div>
 
       {/* RIGHT: Context-Sensitive Sidebar (3 cols) */}
-      <div id="calendar-context-sidebar" className="lg:col-span-3 space-y-5 h-full flex flex-col">
+      <div id="calendar-context-sidebar" className="lg:col-span-3 space-y-5 h-full flex flex-col min-w-0">
         
         {/* VIEW 1: THREE-DAY -> TODAY'S BAR */}
         {viewMode === 'three-day' && (
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             
             {/* Notes Section */}
-            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3">
+            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3 min-w-0">
               <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100">
                 <span className="text-xs font-extrabold text-neutral-800 flex items-center">
                   {selectedDateStr === todayStr ? '今日笔记' : `${selectedDateStr.substring(5)} 笔记`}
@@ -2355,11 +2362,11 @@ export default function CalendarSection({
                           className="group/note bg-neutral-50/60 hover:bg-neutral-100/50 p-2.5 rounded-xl border border-neutral-100 text-[11px] text-neutral-700 relative flex flex-col space-y-1.5 transition shadow-sm hover:shadow"
                         >
                           {editingNoteId === note.id ? (
-                            <div className="space-y-1.5">
+                            <div className="space-y-1.5 min-w-0">
                               <textarea
                                 value={editNoteText}
                                 onChange={(e) => setEditNoteText(e.target.value)}
-                                className="w-full text-[11px] p-2 border border-neutral-300 bg-white rounded-lg focus:ring-1 focus:ring-blue-500 focus:outline-none h-14 font-medium"
+                                className="w-full min-w-0 max-w-full text-[11px] p-2 border border-neutral-300 bg-white rounded-lg focus:ring-1 focus:ring-blue-500 focus:outline-none h-14 font-medium resize-none"
                                 autoFocus
                               />
                               <div className="flex justify-end space-x-1.5">
@@ -2391,17 +2398,17 @@ export default function CalendarSection({
                   </div>
 
                   {/* Add Note Form */}
-                  <form onSubmit={handleAddNoteSubmit} className="flex gap-1.5">
+                  <form onSubmit={handleAddNoteSubmit} className="flex gap-1.5 min-w-0 w-full">
                     <input
                       type="text"
                       placeholder="随手记点什么..."
                       value={newNoteText}
                       onChange={(e) => setNewNoteText(e.target.value)}
-                      className="flex-1 text-[11px] px-2.5 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:bg-white transition"
+                      className="flex-1 min-w-0 w-0 text-[11px] px-2.5 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:bg-white transition"
                     />
                     <button
                       type="submit"
-                      className="p-1.5 bg-neutral-800 text-white rounded-lg hover:bg-neutral-900 transition flex items-center justify-center cursor-pointer"
+                      className="p-1.5 bg-neutral-800 text-white rounded-lg hover:bg-neutral-900 transition flex items-center justify-center cursor-pointer flex-shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -2411,7 +2418,7 @@ export default function CalendarSection({
             </div>
 
             {/* Mood Section */}
-            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3">
+            <div className="context-card bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-3 min-w-0">
               <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100">
                 <span className="text-xs font-extrabold text-neutral-800 flex items-center">
                   {selectedDateStr === todayStr ? '今日心情' : `${selectedDateStr.substring(5)} 心情`}
@@ -2484,7 +2491,7 @@ export default function CalendarSection({
                             type="text"
                             value={todayMoodText}
                             onChange={(e) => setTodayMoodText(e.target.value)}
-                            className="w-full text-[11px] p-2 border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full min-w-0 max-w-full text-[11px] p-2 border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                             placeholder={selectedDateStr === todayStr ? "写下今日心情感受..." : `写下 ${selectedDateStr.substring(5)} 心情感受...`}
                             autoFocus
                           />
@@ -3169,19 +3176,19 @@ export default function CalendarSection({
                   </div>
 
                   {/* Add Subtask Input */}
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex gap-2 pt-1 min-w-0">
                     <input
                       type="text"
                       placeholder="添加新子任务标题..."
                       value={newSubtaskTitle}
                       onChange={(e) => setNewSubtaskTitle(e.target.value)}
                       onKeyDown={handleNewSubtaskKeyDown}
-                      className="flex-1 px-3 py-1.5 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl text-xs font-semibold focus:outline-none transition-all placeholder-neutral-400"
+                      className="flex-1 min-w-0 w-0 px-3 py-1.5 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl text-xs font-semibold focus:outline-none transition-all placeholder-neutral-400"
                     />
                     <button 
                       type="button" 
                       onClick={handleAddSubtask}
-                      className="px-3.5 py-1.5 bg-neutral-800 text-white text-xs font-bold rounded-xl hover:bg-neutral-900 transition flex items-center cursor-pointer shadow-sm"
+                      className="px-3.5 py-1.5 bg-neutral-800 text-white text-xs font-bold rounded-xl hover:bg-neutral-900 transition flex items-center cursor-pointer shadow-sm flex-shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
                       添加

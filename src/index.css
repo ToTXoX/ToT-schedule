@@ -143,6 +143,22 @@ select:focus-visible {
   align-content: start;
 }
 
+#calendar-section-root > *,
+#task-library-root > *,
+#calendar-context-sidebar > *,
+.context-card,
+.context-card > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.context-card form,
+.context-card input,
+.context-card textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
 #calendar-workspace-panel,
 .surface-panel,
 .context-card {
@@ -392,6 +408,16 @@ select:focus-visible {
   #calendar-workspace-panel,
   .surface-panel {
     padding: 16px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  #calendar-workspace-panel {
+    grid-column: span 8 / span 8;
+  }
+
+  #calendar-context-sidebar {
+    grid-column: span 4 / span 4;
   }
 }
 

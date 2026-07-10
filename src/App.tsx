@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Category, Task, Subtask, Note, Mood, MoodEmoji
+  Category, Task, Subtask, Note, Mood, MoodEmoji, PlannerState
 } from './types';
+import { loadPlannerState, savePlannerState } from './storage';
 import TaskLibrary from './components/TaskLibrary';
 import CalendarSection from './components/CalendarSection';
 import { 
@@ -96,34 +97,16 @@ export default function App() {
   const [currentDateStr, setCurrentDateStr] = useState(getRealTodayStr());
   const [systemTime, setSystemTime] = useState<Date>(new Date());
 
-  // Main State (Loaded from LocalStorage)
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('planner_categories');
-    return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
-  });
-
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('planner_tasks');
-    return saved ? JSON.parse(saved) : DEFAULT_TASKS;
-  });
-
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem('planner_notes');
-    return saved ? JSON.parse(saved) : DEFAULT_NOTES;
-  });
-
-  const [moods, setMoods] = useState<Mood[]>(() => {
-    const saved = localStorage.getItem('planner_moods');
-    return saved ? JSON.parse(saved) : DEFAULT_MOODS;
-  });
+  // Main state is hydrated from a local JSON file in Tauri.
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [tasks, setTasks] = useState<Task[]>(DEFAULT_TASKS);
+  const [notes, setNotes] = useState<Note[]>(DEFAULT_NOTES);
+  const [moods, setMoods] = useState<Mood[]>(DEFAULT_MOODS);
+  const [storageReady, setStorageReady] = useState(false);
 
   // User Profile State
-  const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem('planner_user_name') || 'ToT';
-  });
-  const [userAvatar, setUserAvatar] = useState<string>(() => {
-    return localStorage.getItem('planner_user_avatar') || '🐱';
-  });
+  const [userName, setUserName] = useState('ToT');
+  const [userAvatar, setUserAvatar] = useState('🐱');
   const [isEditingName, setIsEditingName] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
@@ -144,30 +127,50 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Sync state with LocalStorage
+  // Load once, then persist all domain data as one JSON document.
   useEffect(() => {
-    localStorage.setItem('planner_user_name', userName);
-  }, [userName]);
+    const fallback: PlannerState = {
+      schemaVersion: 1,
+      categories: DEFAULT_CATEGORIES,
+      tasks: DEFAULT_TASKS,
+      notes: DEFAULT_NOTES,
+      moods: DEFAULT_MOODS,
+      userName: 'ToT',
+      userAvatar: '🐱',
+    };
+
+    loadPlannerState(fallback)
+      .then(state => {
+        setCategories(state.categories);
+        setTasks(state.tasks);
+        setNotes(state.notes);
+        setMoods(state.moods);
+        setUserName(state.userName);
+        setUserAvatar(state.userAvatar);
+      })
+      .catch(error => console.error('加载本地数据失败:', error))
+      .finally(() => setStorageReady(true));
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('planner_user_avatar', userAvatar);
-  }, [userAvatar]);
+    if (!storageReady) return;
 
-  useEffect(() => {
-    localStorage.setItem('planner_categories', JSON.stringify(categories));
-  }, [categories]);
+    const state: PlannerState = {
+      schemaVersion: 1,
+      categories,
+      tasks,
+      notes,
+      moods,
+      userName,
+      userAvatar,
+    };
 
-  useEffect(() => {
-    localStorage.setItem('planner_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    const timer = window.setTimeout(() => {
+      savePlannerState(state).catch(error => console.error('保存本地数据失败:', error));
+    }, 180);
 
-  useEffect(() => {
-    localStorage.setItem('planner_notes', JSON.stringify(notes));
-  }, [notes]);
-
-  useEffect(() => {
-    localStorage.setItem('planner_moods', JSON.stringify(moods));
-  }, [moods]);
+    return () => window.clearTimeout(timer);
+  }, [storageReady, categories, tasks, notes, moods, userName, userAvatar]);
 
   // --- CRUD OPERATORS ---
 
@@ -436,7 +439,7 @@ export default function App() {
             </div>
 
             {/* Right Info: Clock, Notification Trigger */}
-            <div className="flex items-center gap-2 sm:gap-4 relative text-xs text-neutral-600">
+            <div className="flex items-center gap-2 sm:gap-4 relative text-xs text-neutral-600 flex-shrink-0">
               
               {/* Notifications Indicator */}
               <button
@@ -456,7 +459,7 @@ export default function App() {
                 <span className="font-mono font-medium text-neutral-700 text-[11px]">
                   {formatTimeStr(systemTime)}
                 </span>
-                <span className="hidden md:inline text-neutral-400 text-[11px]">
+                <span className="hidden xl:inline text-neutral-400 text-[11px]">
                   {formatDateStr(systemTime)}
                 </span>
               </div>

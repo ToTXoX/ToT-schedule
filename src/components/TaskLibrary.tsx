@@ -636,10 +636,10 @@ export default function TaskLibrary({
   const currentCatDetails = getSelectedCategoryDetails();
 
   return (
-    <div id="task-library-root" className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full items-start">
+    <div id="task-library-root" className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full items-start min-w-0">
       
       {/* 1. Category Sidebar (widen on smaller screen sizes to show full names) */}
-      <div id="category-sidebar" className="surface-panel col-span-12 md:col-span-5 lg:col-span-4 bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4">
+      <div id="category-sidebar" className="surface-panel col-span-12 md:col-span-5 lg:col-span-4 bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4 min-w-0">
         
         <div className="flex items-center justify-between">
           <h3 className="font-sans text-base font-semibold text-neutral-800 flex items-center">
@@ -897,7 +897,7 @@ export default function TaskLibrary({
       </div>
 
       {/* 2. Task List Panel (narrow on smaller screen sizes to accommodate wider sidebar) */}
-      <div id="task-workspace" className="surface-panel col-span-12 md:col-span-7 lg:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4">
+      <div id="task-workspace" className="surface-panel col-span-12 md:col-span-7 lg:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 flex flex-col space-y-4 min-w-0">
         
         {/* Workspace Header */}
         <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
@@ -940,18 +940,18 @@ export default function TaskLibrary({
         </div>
 
         {/* Task Form Input */}
-        <form id="form-add-task" onSubmit={handleAddTaskSubmit} className="flex gap-2">
+        <form id="form-add-task" onSubmit={handleAddTaskSubmit} className="flex gap-2 min-w-0">
           <input
             id="input-task-title"
             type="text"
             placeholder={`添加新任务到「${currentCatDetails.name}」...`}
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
-            className="flex-1 text-sm px-4 py-2.5 bg-neutral-50 rounded-xl border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
+            className="flex-1 min-w-0 w-0 text-sm px-4 py-2.5 bg-neutral-50 rounded-xl border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
           />
           <button
             type="submit"
-            className="px-4 py-2.5 bg-neutral-800 text-white rounded-xl text-xs font-medium hover:bg-neutral-900 transition flex items-center"
+            className="px-4 py-2.5 bg-neutral-800 text-white rounded-xl text-xs font-medium hover:bg-neutral-900 transition flex items-center flex-shrink-0"
           >
             <Plus className="w-4 h-4 mr-1" />
             添加
@@ -1349,7 +1349,7 @@ export default function TaskLibrary({
                         </div>
 
                         {/* Add subtask input */}
-                        <div className="flex gap-2 pt-1.5">
+                        <div className="flex gap-2 pt-1.5 min-w-0">
                           <input
                             type="text"
                             placeholder="新子任务..."
@@ -1361,12 +1361,12 @@ export default function TaskLibrary({
                                 handleAddSubtask(task);
                               }
                             }}
-                            className="flex-1 text-xs px-2.5 py-1.5 bg-white border border-neutral-200 rounded-lg focus:outline-none"
+                            className="flex-1 min-w-0 w-0 text-xs px-2.5 py-1.5 bg-white border border-neutral-200 rounded-lg focus:outline-none"
                           />
                           <button
                             type="button"
                             onClick={() => handleAddSubtask(task)}
-                            className="px-3 py-1.5 bg-neutral-800 text-white rounded-lg text-xs hover:bg-neutral-900"
+                            className="px-3 py-1.5 bg-neutral-800 text-white rounded-lg text-xs hover:bg-neutral-900 flex-shrink-0"
                           >
                             添加子任务
                           </button>
