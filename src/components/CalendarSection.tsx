@@ -6,8 +6,9 @@ import {
   Calendar, ChevronLeft, ChevronRight, CheckSquare, Square, Eye, EyeOff,
   Plus, Trash2, Edit2, GripVertical, Smile, Frown, Flame, Heart, Meh,
   AlertTriangle, ArrowUp, ArrowDown, MoveRight, X, Trash, Clock, Bell, Repeat,
-  Check, Eraser, Star
+  Check, Eraser
 } from 'lucide-react';
+import PlannerDatePicker from './PlannerDatePicker';
 
 interface CalendarSectionProps {
   categories: Category[];
@@ -132,7 +133,19 @@ export default function CalendarSection({
   // Sidebars Visibility Toggles (Persistent via state)
   const [showNotesSection, setShowNotesSection] = useState(true);
   const [showMoodSection, setShowMoodSection] = useState(true);
-  const [showMoodEmojis, setShowMoodEmojis] = useState(true);
+  const [moodVisibilityByView, setMoodVisibilityByView] = useState<Record<ViewMode, boolean>>({
+    'three-day': true,
+    week: true,
+    month: true,
+  });
+  const showMoodEmojis = moodVisibilityByView[viewMode];
+
+  const toggleMoodVisibility = () => {
+    setMoodVisibilityByView(previous => ({
+      ...previous,
+      [viewMode]: !previous[viewMode],
+    }));
+  };
   const [uncategorizedVisible, setUncategorizedVisible] = useState<boolean>(() => {
     const saved = localStorage.getItem('planner_uncategorized_visible');
     return saved !== 'false'; // default to true
@@ -1312,12 +1325,20 @@ export default function CalendarSection({
           <div className="flex items-center space-x-2 self-end sm:self-auto">
             <button
               type="button"
-              onClick={() => setShowMoodEmojis(!showMoodEmojis)}
-              className="flex items-center text-xs font-bold transition cursor-pointer bg-neutral-100/55 hover:bg-neutral-100 border border-neutral-200/40 px-2.5 py-1.5 rounded-xl text-neutral-600 hover:text-neutral-800"
+              role="switch"
+              aria-checked={showMoodEmojis}
+              aria-label={`${viewMode === 'three-day' ? '三日' : viewMode === 'week' ? '周' : '月'}视图心情显示`}
+              onClick={toggleMoodVisibility}
+              className="flex items-center gap-1.5 p-1 cursor-pointer transition-opacity hover:opacity-75"
               title={showMoodEmojis ? '隐藏日期卡心情' : '显示日期卡心情'}
             >
-              {showMoodEmojis ? <Smile className="w-3.5 h-3.5 mr-1 text-amber-500 fill-amber-100" /> : <Smile className="w-3.5 h-3.5 mr-1 text-neutral-400" />}
-              <span>心情</span>
+              <Smile className={`w-3.5 h-3.5 ${showMoodEmojis ? 'text-amber-500 fill-amber-100' : 'text-neutral-400'}`} />
+              <span
+                aria-hidden="true"
+                className={`relative inline-flex h-4 w-7 flex-shrink-0 rounded-full transition-colors duration-200 ${showMoodEmojis ? 'bg-amber-400' : 'bg-neutral-300'}`}
+              >
+                <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${showMoodEmojis ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+              </span>
             </button>
             <div className="bg-neutral-100/55 p-1 rounded-xl border border-neutral-200/40 flex space-x-1">
               <button
@@ -1460,8 +1481,7 @@ export default function CalendarSection({
                           )}
                         </div>
                         {isToday ? (
-                          <span className="today-star-date flex-shrink-0">
-                            <Star />
+                          <span className="today-star-date flex-shrink-0 text-[10px] font-medium text-neutral-600">
                             <span>{day.dateStr.split('-')[2]}</span>
                           </span>
                         ) : (
@@ -1753,10 +1773,9 @@ export default function CalendarSection({
                               setSelectedDateStr(day.dateStr);
                               setViewMode('three-day');
                             }}
-                            className={`cursor-pointer hover:opacity-80 transition ${isToday ? 'today-star-date' : 'text-xs font-extrabold inline-block w-6 h-6 leading-6 rounded-full text-neutral-700 hover:bg-neutral-200/40'}`}
+                            className={`cursor-pointer hover:opacity-80 transition ${isToday ? 'today-star-date text-xs font-extrabold text-neutral-700' : 'text-xs font-extrabold inline-block w-6 h-6 leading-6 rounded-full text-neutral-700 hover:bg-neutral-200/40'}`}
                             title="点击查看此日三日视图"
                           >
-                            {isToday && <Star />}
                             <span>{day.dayNum}</span>
                           </span>
                         </div>
@@ -2019,7 +2038,7 @@ export default function CalendarSection({
 
                             let numClass = "";
                             if (isToday) {
-                              numClass = "today-star-date";
+                              numClass = "today-star-date text-xs font-extrabold text-neutral-700";
                             } else if (!isCurrentMonth) {
                               numClass = "text-neutral-300/80 font-normal";
                             } else if (isPast) {
@@ -2054,7 +2073,6 @@ export default function CalendarSection({
                                     className={`cursor-pointer hover:opacity-80 transition-all ${isToday ? '' : 'text-xs w-5 h-5 leading-5 text-center rounded-full'} ${numClass}`}
                                     title="点击查看此日三日视图"
                                   >
-                                    {isToday && <Star />}
                                     <span>{day.dayNum}</span>
                                   </span>
 
@@ -2740,7 +2758,6 @@ export default function CalendarSection({
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between bg-neutral-50/80 border border-neutral-200/70 px-2.5 py-1.5 rounded-xl">
                     <span className="text-[11px] font-semibold text-neutral-700 flex items-center">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-2" />
                       待安排日程
                     </span>
                     <div className="flex items-center space-x-1.5">
@@ -2788,21 +2805,22 @@ export default function CalendarSection({
                             <div className="flex items-center space-x-2 overflow-hidden flex-1">
                               <button
                                 type="button"
+                                aria-label={`${isTaskCompletedOnDay(task, todayStr) ? '取消完成' : '完成'}：${task.title}`}
+                                title={isTaskCompletedOnDay(task, todayStr) ? '点击取消完成' : '点击标记完成'}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   toggleTaskCompletionOnDay(task, todayStr);
                                 }}
-                                className="transition relative z-30 flex-shrink-0 focus:outline-none cursor-pointer"
+                                className="group/check relative z-30 flex-shrink-0 focus:outline-none cursor-pointer after:absolute after:-inset-1.5 after:rounded-full after:content-['']"
                               >
-                                <div className={`w-4 h-4 rounded-full border transition flex items-center justify-center ${
+                                <div className={`w-4 h-4 rounded-full border transition-colors flex items-center justify-center ${
                                   isTaskCompletedOnDay(task, todayStr)
-                                    ? 'bg-blue-500 border-blue-500 text-white' 
-                                    : 'bg-white border-neutral-300 group-hover:border-neutral-400'
+                                    ? 'bg-blue-500 border-blue-500 text-white group-hover/check:bg-blue-600 group-hover/check:border-blue-600' 
+                                    : 'bg-white border-neutral-300 group-hover/check:border-blue-400 group-hover/check:bg-blue-50/60'
                                 }`}>
                                   {isTaskCompletedOnDay(task, todayStr) && <Check className="w-2.5 h-2.5 stroke-[3] text-white" />}
                                 </div>
                               </button>
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-300 flex-shrink-0" />
                               <span className={`font-semibold text-neutral-800 truncate ${task.completed ? 'line-through text-neutral-400 opacity-60' : ''}`}>
                                 {task.title}
                               </span>
@@ -2866,16 +2884,18 @@ export default function CalendarSection({
                               <div className="flex items-center space-x-2 overflow-hidden flex-1">
                                 <button
                                   type="button"
+                                  aria-label={`${isTaskCompletedOnDay(task, taskDate) ? '取消完成' : '完成'}：${task.title}`}
+                                  title={isTaskCompletedOnDay(task, taskDate) ? '点击取消完成' : '点击标记完成'}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleTaskCompletionOnDay(task, taskDate);
                                   }}
-                                  className="transition relative z-30 flex-shrink-0 focus:outline-none cursor-pointer"
+                                  className="group/check relative z-30 flex-shrink-0 focus:outline-none cursor-pointer after:absolute after:-inset-1.5 after:rounded-full after:content-['']"
                                 >
-                                  <div className={`w-4 h-4 rounded-full border transition flex items-center justify-center ${
+                                  <div className={`w-4 h-4 rounded-full border transition-colors flex items-center justify-center ${
                                     isTaskCompletedOnDay(task, taskDate)
-                                      ? 'bg-blue-500 border-blue-500 text-white' 
-                                      : 'bg-white border-neutral-300 group-hover:border-neutral-400'
+                                      ? 'bg-blue-500 border-blue-500 text-white group-hover/check:bg-blue-600 group-hover/check:border-blue-600' 
+                                      : 'bg-white border-neutral-300 group-hover/check:border-blue-400 group-hover/check:bg-blue-50/60'
                                   }`}>
                                     {isTaskCompletedOnDay(task, taskDate) && <Check className="w-2.5 h-2.5 stroke-[3] text-white" />}
                                   </div>
@@ -3292,26 +3312,23 @@ export default function CalendarSection({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
-                          <input
-                            type="date"
+                          <PlannerDatePicker
                             value={editTaskDate}
-                            onChange={(e) => {
-                              const newStart = e.target.value;
+                            ariaLabel="开始日期"
+                            onChange={(newStart) => {
                               setEditTaskDate(newStart);
                               if (editTaskEndDate && newStart > editTaskEndDate) {
                                   setEditTaskEndDate('');
                               }
                             }}
-                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
-                          <input
-                            type="date"
+                          <PlannerDatePicker
                             value={editTaskEndDate}
-                            onChange={(e) => {
-                              const newEnd = e.target.value;
+                            ariaLabel="结束日期"
+                            onChange={(newEnd) => {
                               if (!editTaskDate || newEnd >= editTaskDate) {
                                 setEditTaskEndDate(newEnd);
                               } else {
@@ -3319,7 +3336,6 @@ export default function CalendarSection({
                               }
                             }}
                             min={editTaskDate}
-                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                       </div>
@@ -3350,11 +3366,10 @@ export default function CalendarSection({
                   {editTaskScheduleType === 'week' && (
                     <div className="w-full animate-fade-in space-y-1">
                       <label className="text-[10px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
-                      <input
-                        type="date"
+                      <PlannerDatePicker
                         value={editTaskScheduledWeek}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        ariaLabel="选择日期定位至该周"
+                        onChange={(val) => {
                           if (!val) {
                             setEditTaskScheduledWeek('');
                             return;
@@ -3369,7 +3384,6 @@ export default function CalendarSection({
                             setEditTaskScheduledWeek(val);
                           }
                         }}
-                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
                       />
                       {editTaskScheduledWeek && (
                         <p className="text-[10px] text-blue-600 font-extrabold mt-1">
@@ -3382,11 +3396,11 @@ export default function CalendarSection({
                   {editTaskScheduleType === 'month' && (
                     <div className="w-full animate-fade-in space-y-1">
                       <label className="text-[10px] font-bold text-neutral-500 block">选择月份</label>
-                      <input
-                        type="month"
+                      <PlannerDatePicker
+                        mode="month"
                         value={editTaskScheduledMonth}
-                        onChange={(e) => setEditTaskScheduledMonth(e.target.value)}
-                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
+                        ariaLabel="选择月份"
+                        onChange={setEditTaskScheduledMonth}
                       />
                       {editTaskScheduledMonth && (
                         <p className="text-[10px] text-blue-600 font-extrabold mt-1">

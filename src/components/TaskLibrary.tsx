@@ -6,6 +6,7 @@ import {
   Folder, Plus, Trash2, Edit2, ChevronDown, ChevronRight, CheckSquare, Square,
   GripVertical, Calendar, Clock, AlertTriangle, ArrowUp, ArrowDown, Settings, Check, X, Trash, ArrowUpDown
 } from 'lucide-react';
+import PlannerDatePicker from './PlannerDatePicker';
 
 const formatDate = (d: Date): string => {
   const year = d.getFullYear();
@@ -1153,31 +1154,22 @@ export default function TaskLibrary({
                           {(task.date || inlineEditingDateTaskId === task.id) && (
                             <div className="flex items-center">
                               {inlineEditingDateTaskId === task.id ? (
-                                <input 
-                                  type="date"
+                                <PlannerDatePicker
+                                  compact
+                                  autoFocus
                                   value={inlineEditDate}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
+                                  ariaLabel={`修改${task.title}的日期`}
+                                  onChange={(val) => {
                                     setInlineEditDate(val);
                                     onUpdateTask(task.id, { date: val });
                                     setInlineEditingDateTaskId(null);
                                     lastBlurTimeRef.current = Date.now();
                                   }}
-                                  onBlur={() => {
-                                    setInlineEditingDateTaskId(null);
-                                    lastBlurTimeRef.current = Date.now();
-                                  }}
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      onUpdateTask(task.id, { date: inlineEditDate });
-                                      setInlineEditingDateTaskId(null);
-                                      lastBlurTimeRef.current = Date.now();
-                                    } else if (e.key === 'Escape') {
+                                    if (e.key === 'Escape') {
                                       setInlineEditingDateTaskId(null);
                                     }
                                   }}
-                                  className="task-date-input text-[10px] px-1.5 py-0.5 bg-white border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800"
-                                  autoFocus
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
@@ -1500,26 +1492,23 @@ export default function TaskLibrary({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
-                          <input
-                            type="date"
+                          <PlannerDatePicker
                             value={editTaskDate}
-                            onChange={(e) => {
-                              const newStart = e.target.value;
+                            ariaLabel="开始日期"
+                            onChange={(newStart) => {
                               setEditTaskDate(newStart);
                               if (editTaskEndDate && newStart > editTaskEndDate) {
-                                setEditTaskEndDate('');
+                                  setEditTaskEndDate('');
                               }
                             }}
-                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
-                          <input
-                            type="date"
+                          <PlannerDatePicker
                             value={editTaskEndDate}
-                            onChange={(e) => {
-                              const newEnd = e.target.value;
+                            ariaLabel="结束日期"
+                            onChange={(newEnd) => {
                               if (!editTaskDate || newEnd >= editTaskDate) {
                                 setEditTaskEndDate(newEnd);
                               } else {
@@ -1527,7 +1516,6 @@ export default function TaskLibrary({
                               }
                             }}
                             min={editTaskDate}
-                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                       </div>
@@ -1558,11 +1546,10 @@ export default function TaskLibrary({
                   {editTaskScheduleType === 'week' && (
                     <div className="w-full animate-fade-in space-y-1">
                       <label className="text-[10px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
-                      <input
-                        type="date"
+                      <PlannerDatePicker
                         value={editTaskScheduledWeek}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        ariaLabel="选择日期定位至该周"
+                        onChange={(val) => {
                           if (!val) {
                             setEditTaskScheduledWeek('');
                             return;
@@ -1577,7 +1564,6 @@ export default function TaskLibrary({
                             setEditTaskScheduledWeek(val);
                           }
                         }}
-                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
                       />
                       {editTaskScheduledWeek && (
                         <p className="text-[10px] text-blue-600 font-extrabold mt-1">
@@ -1590,11 +1576,11 @@ export default function TaskLibrary({
                   {editTaskScheduleType === 'month' && (
                     <div className="w-full animate-fade-in space-y-1">
                       <label className="text-[10px] font-bold text-neutral-500 block">选择月份</label>
-                      <input
-                        type="month"
+                      <PlannerDatePicker
+                        mode="month"
                         value={editTaskScheduledMonth}
-                        onChange={(e) => setEditTaskScheduledMonth(e.target.value)}
-                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
+                        ariaLabel="选择月份"
+                        onChange={setEditTaskScheduledMonth}
                       />
                       {editTaskScheduledMonth && (
                         <p className="text-[10px] text-blue-600 font-extrabold mt-1">
