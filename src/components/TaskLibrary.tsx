@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Category, Task, Subtask, Urgency, MoodEmoji 
 } from '../types';
 import { 
   Folder, Plus, Trash2, Edit2, ChevronDown, ChevronRight, CheckSquare, Square,
-  GripVertical, Calendar, Clock, AlertTriangle, ArrowUp, ArrowDown, Settings, Check, X, Trash
+  GripVertical, Calendar, Clock, AlertTriangle, ArrowUp, ArrowDown, Settings, Check, X, Trash, ArrowUpDown
 } from 'lucide-react';
 
 const formatDate = (d: Date): string => {
@@ -12,6 +12,77 @@ const formatDate = (d: Date): string => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const getMondayOfWeek = (offsetWeeks: number = 0): Date => {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1) + (offsetWeeks * 7);
+  return new Date(today.getFullYear(), today.getMonth(), diff);
+};
+
+const getYearMonthStr = (offsetMonths: number = 0): string => {
+  const today = new Date();
+  const d = new Date(today.getFullYear(), today.getMonth() + offsetMonths, 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const getWeekNumber = (d: Date): number => {
+  const date = new Date(d.getTime());
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000
+                        - 3 + (week1.getDay() + 6) % 7) / 7);
+};
+
+const getWeekOptionLabel = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const monday = new Date(dateStr);
+  if (isNaN(monday.getTime())) return dateStr;
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  
+  const todayMonday = getMondayOfWeek(0);
+  const todayMondayStr = formatDate(todayMonday);
+  const nextMondayStr = formatDate(getMondayOfWeek(1));
+  const lastMondayStr = formatDate(getMondayOfWeek(-1));
+  const nextNextMondayStr = formatDate(getMondayOfWeek(2));
+
+  const mStr = String(monday.getMonth() + 1).padStart(2, '0') + '-' + String(monday.getDate()).padStart(2, '0');
+  const sStr = String(sunday.getMonth() + 1).padStart(2, '0') + '-' + String(sunday.getDate()).padStart(2, '0');
+
+  if (dateStr === todayMondayStr) {
+    return `本周 (${mStr} ~ ${sStr})`;
+  } else if (dateStr === nextMondayStr) {
+    return `下周 (${mStr} ~ ${sStr})`;
+  } else if (dateStr === lastMondayStr) {
+    return `上周 (${mStr} ~ ${sStr})`;
+  } else if (dateStr === nextNextMondayStr) {
+    return `下下周 (${mStr} ~ ${sStr})`;
+  }
+  
+  return `${monday.getFullYear()}年第${getWeekNumber(monday)}周 (${mStr} 起)`;
+};
+
+const getMonthOptionLabel = (monthStr: string, offset: number): string => {
+  const parts = monthStr.split('-');
+  const year = parts[0];
+  const month = parseInt(parts[1], 10);
+  
+  if (offset === 0) {
+    return `本月 (${year}年${month}月)`;
+  } else if (offset === 1) {
+    return `下月 (${year}年${month}月)`;
+  } else if (offset === -1) {
+    return `上月 (${year}年${month}月)`;
+  } else if (offset === 2) {
+    return `下下月 (${year}年${month}月)`;
+  }
+  
+  return `${year}年${month}月`;
 };
 
 interface TaskLibraryProps {
@@ -30,18 +101,38 @@ interface TaskLibraryProps {
 }
 
 const PRESET_COLORS = [
-  { name: '浅蓝色', value: 'sky', hex: '#0ea5e9', bg: 'bg-sky-400', text: 'text-sky-500', hover: 'hover:bg-sky-500' },
-  { name: '深蓝色', value: 'blue', hex: '#1d4ed8', bg: 'bg-blue-700', text: 'text-blue-700', hover: 'hover:bg-blue-800' },
-  { name: '浅紫色', value: 'lavender', hex: '#c084fc', bg: 'bg-purple-400', text: 'text-purple-400', hover: 'hover:bg-purple-500' },
-  { name: '深紫色', value: 'purple', hex: '#7e22ce', bg: 'bg-purple-700', text: 'text-purple-700', hover: 'hover:bg-purple-800' },
-  { name: '浅绿色', value: 'lime', hex: '#4ade80', bg: 'bg-green-400', text: 'text-green-500', hover: 'hover:bg-green-500' },
-  { name: '深绿色', value: 'green', hex: '#15803d', bg: 'bg-green-700', text: 'text-green-700', hover: 'hover:bg-green-800' },
-  { name: '浅橙色', value: 'amber', hex: '#fbbf24', bg: 'bg-amber-400', text: 'text-amber-500', hover: 'hover:bg-amber-500' },
-  { name: '深橙色', value: 'orange', hex: '#c2410c', bg: 'bg-orange-700', text: 'text-orange-700', hover: 'hover:bg-orange-800' },
-  { name: '浅红色', value: 'rose', hex: '#f43f5e', bg: 'bg-rose-500', text: 'text-rose-500', hover: 'hover:bg-rose-600' },
-  { name: '深红色', value: 'red', hex: '#b91c1c', bg: 'bg-red-700', text: 'text-red-700', hover: 'hover:bg-red-800' },
-  { name: '浅灰色', value: 'slate-light', hex: '#94a3b8', bg: 'bg-slate-400', text: 'text-slate-400', hover: 'hover:bg-slate-500' },
-  { name: '深灰色', value: 'slate', hex: '#334155', bg: 'bg-slate-700', text: 'text-slate-700', hover: 'hover:bg-slate-800' },
+  // 红 (Red)
+  { name: '落樱红 (浅)', value: 'red-light', hex: '#ffe4e6', bg: 'bg-rose-100', text: 'text-rose-500' },
+  { name: '珊瑚红 (中)', value: 'red-medium', hex: '#fda4af', bg: 'bg-rose-300', text: 'text-rose-600' },
+  { name: '胭脂红 (深)', value: 'red-dark', hex: '#f43f5e', bg: 'bg-rose-500', text: 'text-rose-800' },
+  // 橙 (Orange)
+  { name: '杏花橙 (浅)', value: 'orange-light', hex: '#ffedd5', bg: 'bg-orange-100', text: 'text-orange-500' },
+  { name: '蜜桃橙 (中)', value: 'orange-medium', hex: '#fdba74', bg: 'bg-orange-300', text: 'text-orange-600' },
+  { name: '晚霞橙 (深)', value: 'orange-dark', hex: '#f97316', bg: 'bg-orange-500', text: 'text-orange-800' },
+  // 黄 (Yellow)
+  { name: '晨光黄 (浅)', value: 'yellow-light', hex: '#fef3c7', bg: 'bg-amber-100', text: 'text-amber-600' },
+  { name: '向日葵 (中)', value: 'yellow-medium', hex: '#fcd34d', bg: 'bg-amber-300', text: 'text-amber-700' },
+  { name: '琥珀黄 (深)', value: 'yellow-dark', hex: '#f59e0b', bg: 'bg-amber-500', text: 'text-amber-900' },
+  // 绿 (Green)
+  { name: '薄荷绿 (浅)', value: 'green-light', hex: '#dcfce7', bg: 'bg-emerald-100', text: 'text-emerald-600' },
+  { name: '青草绿 (中)', value: 'green-medium', hex: '#6ee7b7', bg: 'bg-emerald-300', text: 'text-emerald-700' },
+  { name: '翡翠绿 (深)', value: 'green-dark', hex: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-900' },
+  // 蓝 (Blue)
+  { name: '晴空蓝 (浅)', value: 'blue-light', hex: '#e0f2fe', bg: 'bg-sky-100', text: 'text-sky-600' },
+  { name: '湖水蓝 (中)', value: 'blue-medium', hex: '#7dd3fc', bg: 'bg-sky-300', text: 'text-sky-700' },
+  { name: '深海蓝 (深)', value: 'blue-dark', hex: '#0284c7', bg: 'bg-sky-500', text: 'text-sky-900' },
+  // 靛 (Indigo)
+  { name: '静谧靛 (浅)', value: 'indigo-light', hex: '#e0e7ff', bg: 'bg-indigo-100', text: 'text-indigo-500' },
+  { name: '风信子 (中)', value: 'indigo-medium', hex: '#a5b4fc', bg: 'bg-indigo-300', text: 'text-indigo-600' },
+  { name: '青金石 (深)', value: 'indigo-dark', hex: '#6366f1', bg: 'bg-indigo-500', text: 'text-indigo-800' },
+  // 紫 (Purple)
+  { name: '丁香紫 (浅)', value: 'purple-light', hex: '#f3e8ff', bg: 'bg-purple-100', text: 'text-purple-500' },
+  { name: '薰衣紫 (中)', value: 'purple-medium', hex: '#d8b4fe', bg: 'bg-purple-300', text: 'text-purple-600' },
+  { name: '风铃紫 (深)', value: 'purple-dark', hex: '#a855f7', bg: 'bg-purple-500', text: 'text-purple-800' },
+  // 灰 (Gray)
+  { name: '晨雾灰 (浅)', value: 'gray-light', hex: '#f1f5f9', bg: 'bg-slate-100', text: 'text-slate-500' },
+  { name: '水泥灰 (中)', value: 'gray-medium', hex: '#cbd5e1', bg: 'bg-slate-300', text: 'text-slate-600' },
+  { name: '黛墨灰 (深)', value: 'gray-dark', hex: '#64748b', bg: 'bg-slate-500', text: 'text-slate-800' },
 ];
 
 export default function TaskLibrary({
@@ -58,13 +149,16 @@ export default function TaskLibrary({
   onDeleteTask,
   onReorderTasks
 }: TaskLibraryProps) {
+  const lastBlurTimeRef = useRef<number>(0);
+
   // Category management states
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
-  const [newCatColor, setNewCatColor] = useState('blue');
+  const [newCatColor, setNewCatColor] = useState('blue-medium');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
-  const [editCatColor, setEditCatColor] = useState('blue');
+  const [editCatColor, setEditCatColor] = useState('blue-medium');
+  const [activeColorPickerCatId, setActiveColorPickerCatId] = useState<string | null>(null);
 
   // Task creation/editing states
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -82,6 +176,11 @@ export default function TaskLibrary({
   const [editTaskScheduleType, setEditTaskScheduleType] = useState<'date' | 'week' | 'month' | 'none'>('none');
   const [editTaskScheduledWeek, setEditTaskScheduledWeek] = useState('');
   const [editTaskScheduledMonth, setEditTaskScheduledMonth] = useState('');
+  const [isWeekFocused, setIsWeekFocused] = useState(false);
+  const [isMonthFocused, setIsMonthFocused] = useState(false);
+
+  const taskLibWeekInputRef = useRef<HTMLInputElement>(null);
+  const taskLibMonthInputRef = useRef<HTMLInputElement>(null);
 
   // Subtask creation state
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -93,12 +192,99 @@ export default function TaskLibrary({
   const [draggedTaskIndex, setDraggedTaskIndex] = useState<number | null>(null);
   const [draggedSubIndex, setDraggedSubIndex] = useState<number | null>(null);
 
+  // Inline task title editing states
+  const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
+  const [inlineEditTitle, setInlineEditTitle] = useState('');
+
+  // Inline task date editing states
+  const [inlineEditingDateTaskId, setInlineEditingDateTaskId] = useState<string | null>(null);
+  const [inlineEditDate, setInlineEditDate] = useState('');
+
+  // Inline task time editing states
+  const [inlineEditingTimeTaskId, setInlineEditingTimeTaskId] = useState<string | null>(null);
+  const [inlineEditTime, setInlineEditTime] = useState('');
+
+  // Inline task urgency editing states
+  const [inlineEditingUrgencyTaskId, setInlineEditingUrgencyTaskId] = useState<string | null>(null);
+
+  // Sorting state
+  const [isSortedByTime, setIsSortedByTime] = useState(false);
+
+  // Ref to hold the single-click timeout for distinguishing single and double clicks
+  const clickTimeoutRef = useRef<any>(null);
+
+  const handleSaveInlineTitle = (taskId: string) => {
+    if (inlineEditTitle.trim()) {
+      onUpdateTask(taskId, { title: inlineEditTitle.trim() });
+    }
+    setInlineEditingTaskId(null);
+    lastBlurTimeRef.current = Date.now();
+  };
+
   // Filter tasks based on category selection
   const filteredTasks = tasks.filter(task => {
     if (selectedCategoryId === 'all') return true;
     if (selectedCategoryId === 'unscheduled') return !task.categoryId;
     return task.categoryId === selectedCategoryId;
   }).sort((a, b) => a.order - b.order);
+
+  // Time-based sorting logic
+  const getSortedTasksByTime = (taskList: Task[]) => {
+    return [...taskList].sort((a, b) => {
+      const getTier = (t: Task) => {
+        if (t.completed) return 4;
+        if (t.urgency === 'high') return 1;
+        if (t.date) return 2;
+        return 3;
+      };
+      
+      const tierA = getTier(a);
+      const tierB = getTier(b);
+      
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+      
+      const compareDates = (x: Task, y: Task) => {
+        const dateX = x.date || '';
+        const dateY = y.date || '';
+        if (dateX !== dateY) {
+          if (!dateX) return 1;
+          if (!dateY) return -1;
+          return dateX.localeCompare(dateY);
+        }
+        const timeX = x.time || '';
+        const timeY = y.time || '';
+        if (timeX !== timeY) {
+          if (!timeX) return 1;
+          if (!timeY) return -1;
+          return timeX.localeCompare(timeY);
+        }
+        return x.order - y.order;
+      };
+      
+      if (tierA === 1) {
+        const hasDateA = !!a.date;
+        const hasDateB = !!b.date;
+        if (hasDateA && hasDateB) {
+          return compareDates(a, b);
+        } else if (hasDateA) {
+          return -1;
+        } else if (hasDateB) {
+          return 1;
+        }
+        return a.order - b.order;
+      }
+      
+      if (tierA === 2) {
+        return compareDates(a, b);
+      }
+      
+      return a.order - b.order;
+    });
+  };
+
+  const displayTasks = isSortedByTime ? getSortedTasksByTime(filteredTasks) : filteredTasks;
 
   // Helper to get category background classes
   const getCatColorClasses = (colorName: string) => {
@@ -108,6 +294,12 @@ export default function TaskLibrary({
       text: preset.text,
       badge: `${preset.bg} text-white`
     };
+  };
+
+  const getCatColorHex = (colorName: string, customHex?: string) => {
+    if (customHex) return customHex;
+    const preset = PRESET_COLORS.find(p => p.value === colorName);
+    return preset ? preset.hex : '#64748b';
   };
 
   // Category Add
@@ -328,8 +520,10 @@ export default function TaskLibrary({
 
   // Drag & Drop handlers for Categories (HTML5)
   const handleCatDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedCatIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      setDraggedCatIndex(index);
+    }, 0);
   };
 
   const handleCatDragOver = (e: React.DragEvent, index: number) => {
@@ -351,8 +545,10 @@ export default function TaskLibrary({
 
   // Drag & Drop handlers for Tasks
   const handleTaskDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedTaskIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      setDraggedTaskIndex(index);
+    }, 0);
   };
 
   const handleTaskDragOver = (e: React.DragEvent, index: number) => {
@@ -389,6 +585,37 @@ export default function TaskLibrary({
     setDraggedTaskIndex(null);
   };
 
+  // Drag & Drop handlers for Subtasks
+  const handleSubDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+    setDraggedSubIndex(index);
+  };
+
+  const handleSubDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleSubDrop = (e: React.DragEvent, task: Task, targetIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedSubIndex === null || draggedSubIndex === targetIndex) return;
+
+    const subtasksSorted = [...task.subtasks].sort((a, b) => a.order - b.order);
+    const [removed] = subtasksSorted.splice(draggedSubIndex, 1);
+    subtasksSorted.splice(targetIndex, 0, removed);
+
+    // Reassign orders
+    const updatedSubtasks = subtasksSorted.map((sub, idx) => ({
+      ...sub,
+      order: idx
+    }));
+
+    onUpdateTask(task.id, { subtasks: updatedSubtasks });
+    setDraggedSubIndex(null);
+  };
+
   // Get display details of category for selected category
   const getSelectedCategoryDetails = () => {
     if (selectedCategoryId === 'all') {
@@ -400,7 +627,8 @@ export default function TaskLibrary({
     const cat = categories.find(c => c.id === selectedCategoryId);
     if (cat) {
       const cls = getCatColorClasses(cat.color);
-      return { name: cat.name, colorClass: `${cls.text} bg-${cat.color}-50`, colorHex: cat.colorHex };
+      const hex = getCatColorHex(cat.color, cat.colorHex);
+      return { name: cat.name, colorClass: `${cls.text} bg-${cat.color}-50`, colorHex: hex };
     }
     return { name: '全部任务', colorClass: 'text-neutral-700 bg-neutral-100', colorHex: '#64748b' };
   };
@@ -410,13 +638,13 @@ export default function TaskLibrary({
   return (
     <div id="task-library-root" className="grid grid-cols-1 md:grid-cols-12 gap-6 h-full items-start">
       
-      {/* 1. Category Sidebar (3 cols) */}
-      <div id="category-sidebar" className="md:col-span-4 bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-4">
+      {/* 1. Category Sidebar (widen on smaller screen sizes to show full names) */}
+      <div id="category-sidebar" className="col-span-12 md:col-span-5 lg:col-span-4 bg-white/70 backdrop-blur-md rounded-2xl p-4 border border-neutral-100 shadow-sm flex flex-col space-y-4">
         
         <div className="flex items-center justify-between">
           <h3 className="font-sans text-base font-semibold text-neutral-800 flex items-center">
             <Folder className="w-5 h-5 mr-2 text-neutral-500" />
-            分类清单
+            任务分类
           </h3>
           <button 
             id="btn-add-category-toggle"
@@ -431,7 +659,7 @@ export default function TaskLibrary({
         {isAddingCategory && (
           <form id="form-add-category" onSubmit={handleCreateCategory} className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-3">
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">清单名称</label>
+              <label className="text-xs text-neutral-500 block mb-1">分类名称</label>
               <input 
                 id="input-category-name"
                 type="text" 
@@ -443,17 +671,17 @@ export default function TaskLibrary({
               />
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">主题色</label>
-              <div className="flex flex-wrap gap-2">
+              <label className="text-[11px] text-neutral-400 font-bold block mb-1.5 uppercase tracking-wider">选择主题色 ( 浅 · 中 · 深 )</label>
+              <div className="grid grid-cols-3 gap-x-3.5 gap-y-2 w-max bg-white/60 p-2.5 rounded-2xl border border-neutral-100/80 shadow-sm">
                 {PRESET_COLORS.map(color => (
                   <button
                     key={color.value}
                     type="button"
                     onClick={() => setNewCatColor(color.value)}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform ${color.bg} ${newCatColor === color.value ? 'scale-125 ring-2 ring-neutral-300' : ''}`}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${color.bg} ${newCatColor === color.value ? 'scale-110 ring-2 ring-neutral-400 ring-offset-1' : 'hover:scale-[1.08]'}`}
                     title={color.name}
                   >
-                    {newCatColor === color.value && <Check className="w-3.h-3 text-white" />}
+                    {newCatColor === color.value && <Check className={`w-3.5 h-3.5 ${color.text}`} />}
                   </button>
                 ))}
               </div>
@@ -477,18 +705,18 @@ export default function TaskLibrary({
         )}
 
         {/* Category List */}
-        <div id="category-list" className="space-y-1 overflow-y-auto max-h-[350px] pr-1">
+        <div id="category-list" className="space-y-1 overflow-y-auto max-h-[650px] pr-1">
           {/* Default Categories */}
           <button
             id="cat-btn-all"
             onClick={() => onSelectCategory('all')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${selectedCategoryId === 'all' ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-50'}`}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition ${selectedCategoryId === 'all' ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-50'}`}
           >
             <span className="flex items-center">
               <span className="w-2.5 h-2.5 rounded-full bg-neutral-400 mr-2" />
               全部任务
             </span>
-            <span className="bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-full text-[10px]">
+            <span className="bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
               {tasks.length}
             </span>
           </button>
@@ -496,13 +724,13 @@ export default function TaskLibrary({
           <button
             id="cat-btn-unscheduled"
             onClick={() => onSelectCategory('unscheduled')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${selectedCategoryId === 'unscheduled' ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-50'}`}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition ${selectedCategoryId === 'unscheduled' ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-50'}`}
           >
             <span className="flex items-center">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mr-2" />
               未分类
             </span>
-            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px]">
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
               {tasks.filter(t => !t.categoryId).length}
             </span>
           </button>
@@ -522,43 +750,61 @@ export default function TaskLibrary({
                 onDragStart={(e) => handleCatDragStart(e, idx)}
                 onDragOver={(e) => handleCatDragOver(e, idx)}
                 onDrop={(e) => handleCatDrop(e, idx)}
-                className={`group flex flex-col p-1.5 rounded-xl border transition ${selectedCategoryId === cat.id ? 'bg-neutral-50 border-neutral-200' : 'border-transparent hover:bg-neutral-50'}`}
+                className={`group flex flex-col p-1.5 rounded-xl border transition ${selectedCategoryId === cat.id ? 'bg-neutral-50 border-neutral-200/60 shadow-sm' : 'border-transparent hover:bg-neutral-50/75'}`}
               >
                 {isEditing ? (
-                  <div className="space-y-2 p-1.5">
+                  <div className="space-y-2 p-1.5" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       value={editCatName}
                       onChange={(e) => setEditCatName(e.target.value)}
-                      className="w-full text-xs px-2 py-1 bg-white border border-neutral-300 rounded focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveCategoryEdit(cat.id);
+                        } else if (e.key === 'Escape') {
+                          setEditingCategoryId(null);
+                        }
+                      }}
+                      onBlur={() => handleSaveCategoryEdit(cat.id)}
+                      className="w-full text-xs px-2.5 py-1.5 bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-400 font-bold shadow-sm"
+                      autoFocus
                     />
-                    <div className="flex gap-1.5 flex-wrap">
+                    <div className="grid grid-cols-3 gap-1 pt-1.5 w-max bg-neutral-50/50 p-1.5 rounded-xl border border-neutral-200/40 shadow-inner">
                       {PRESET_COLORS.map(color => (
                         <button
                           key={color.value}
                           type="button"
                           onClick={() => setEditCatColor(color.value)}
-                          className={`w-4 h-4 rounded-full flex items-center justify-center ${color.bg}`}
+                          className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${color.bg} transition-all hover:scale-110 cursor-pointer`}
+                          title={color.name}
                         >
-                          {editCatColor === color.value && <Check className="w-2.5 h-2.5 text-white" />}
+                          {editCatColor === color.value && <Check className={`w-2 h-2 ${color.text}`} />}
                         </button>
                       ))}
                     </div>
-                    <div className="flex justify-end space-x-1.5">
-                      <button onClick={() => setEditingCategoryId(null)} className="p-1 rounded hover:bg-neutral-200 text-neutral-500">
+                    <div className="flex justify-end space-x-1">
+                      <button onClick={() => setEditingCategoryId(null)} className="p-1 rounded-lg hover:bg-neutral-100 text-neutral-400">
                         <X className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleSaveCategoryEdit(cat.id)} className="p-1 rounded bg-neutral-800 text-white hover:bg-neutral-950">
+                      <button onClick={() => handleSaveCategoryEdit(cat.id)} className="p-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-900">
                         <Check className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-2 flex-1 min-w-0" onClick={() => onSelectCategory(cat.id)}>
-                      <GripVertical className="w-3.5 h-3.5 text-neutral-300 cursor-grab group-hover:text-neutral-400" />
+                  <div className="flex items-center justify-between w-full min-h-[32px] px-1.5">
+                    <div 
+                      className="flex items-center space-x-2 flex-1 min-w-0 py-0.5" 
+                      onClick={() => onSelectCategory(cat.id)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        startEditCategory(cat);
+                      }}
+                      title="单击选择，双击修改名称"
+                    >
+                      <GripVertical className="w-3.5 h-3.5 text-neutral-300 cursor-grab group-hover:text-neutral-400 flex-shrink-0" />
                       
-                      {/* Checkbox to control visibility in Calendar */}
+                      {/* Checkbox to control visibility in Calendar - Light gray theme */}
                       <input 
                         type="checkbox"
                         checked={cat.visible !== false}
@@ -566,35 +812,81 @@ export default function TaskLibrary({
                           e.stopPropagation();
                           onUpdateCategory(cat.id, { visible: e.target.checked });
                         }}
-                        className="w-3.5 h-3.5 rounded text-blue-500 focus:ring-0 cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-400 focus:ring-0 cursor-pointer accent-neutral-300 bg-white"
                         title="在日历中显示/隐藏"
+                        onClick={(e) => e.stopPropagation()}
                       />
 
-                      <span className={`w-2.5 h-2.5 rounded-full ${cls.dot} flex-shrink-0`} />
+                      {/* Clickable dot to change theme color */}
+                      <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveColorPickerCatId(activeColorPickerCatId === cat.id ? null : cat.id);
+                          }}
+                          className={`w-2.5 h-2.5 rounded-full ${cls.dot} cursor-pointer hover:scale-125 transition-transform relative outline-none flex items-center justify-center`}
+                          title="点击快速修改主题色"
+                        />
+                        
+                        {/* Mini Popover Color Picker */}
+                        {activeColorPickerCatId === cat.id && (() => {
+                          const isNearBottom = categories.length > 1 && idx >= categories.length - 2;
+                          return (
+                            <>
+                              {/* Backdrop to close color picker */}
+                              <div 
+                                className="fixed inset-0 z-40 cursor-default" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveColorPickerCatId(null);
+                                }}
+                              />
+                              <div className={`absolute left-0 bg-white border border-neutral-200/80 rounded-2xl p-2.5 shadow-xl z-50 grid grid-cols-3 gap-1.5 w-max animate-fade-in ${
+                                isNearBottom ? 'bottom-full mb-2' : 'top-4 mt-2'
+                              }`}>
+                                {PRESET_COLORS.map(color => (
+                                  <button
+                                    key={color.value}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onUpdateCategory(cat.id, { color: color.value, colorHex: color.hex });
+                                      setActiveColorPickerCatId(null);
+                                    }}
+                                    className={`w-4 h-4 rounded-full flex items-center justify-center ${color.bg} hover:scale-110 transition-all cursor-pointer shadow-sm`}
+                                    title={color.name}
+                                  >
+                                    {cat.color === color.value && <Check className={`w-2.5 h-2.5 ${color.text}`} />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                       
-                      <span className={`text-xs font-medium whitespace-normal break-all cursor-pointer ${selectedCategoryId === cat.id ? 'text-neutral-900 font-semibold' : 'text-neutral-600'}`}>
+                      <span className={`text-xs whitespace-normal break-all cursor-pointer ${selectedCategoryId === cat.id ? 'text-neutral-900 font-bold' : 'text-neutral-600 font-medium hover:text-neutral-900'}`}>
                         {cat.name}
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-150">
-                      <button onClick={() => moveCategory(idx, 'up')} disabled={idx === 0} className="p-0.5 rounded text-neutral-400 hover:text-neutral-700 disabled:opacity-30">
-                        <ArrowUp className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => moveCategory(idx, 'down')} disabled={idx === categories.length - 1} className="p-0.5 rounded text-neutral-400 hover:text-neutral-700 disabled:opacity-30">
-                        <ArrowDown className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => startEditCategory(cat)} className="p-0.5 rounded hover:bg-neutral-200 text-neutral-500">
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => onDeleteCategory(cat.id)} className="p-0.5 rounded hover:bg-red-50 text-red-500">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    {/* Actions and Count Badge aligned properly on the right */}
+                    <div className="flex items-center space-x-1.5 flex-shrink-0">
+                      <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition duration-150">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onDeleteCategory(cat.id); }} 
+                          className="p-1 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-500 cursor-pointer"
+                          title="删除分类"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
 
-                    <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${selectedCategoryId === cat.id ? cls.badge : 'bg-neutral-100 text-neutral-600'}`}>
-                      {taskCount}
-                    </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold min-w-[22px] text-center ${selectedCategoryId === cat.id ? cls.badge : 'bg-neutral-100 text-neutral-500'}`}>
+                        {taskCount}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -604,17 +896,47 @@ export default function TaskLibrary({
 
       </div>
 
-      {/* 2. Task List Panel (8 cols) */}
-      <div id="task-workspace" className="md:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 shadow-sm flex flex-col space-y-4">
+      {/* 2. Task List Panel (narrow on smaller screen sizes to accommodate wider sidebar) */}
+      <div id="task-workspace" className="col-span-12 md:col-span-7 lg:col-span-8 bg-white rounded-2xl p-5 border border-neutral-100 shadow-sm flex flex-col space-y-4">
         
         {/* Workspace Header */}
         <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
           <div>
-            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${currentCatDetails.colorClass}`}>
+            <span 
+              className="inline-block px-3 py-1 rounded-full text-xs font-bold border"
+              style={{ 
+                backgroundColor: `${currentCatDetails.colorHex}15`, 
+                borderColor: `${currentCatDetails.colorHex}25`, 
+                color: currentCatDetails.colorHex 
+              }}
+            >
               {currentCatDetails.name}
             </span>
             <span className="text-xs text-neutral-400 ml-2">({filteredTasks.length} 个任务)</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSortedByTime(!isSortedByTime)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition shadow-sm hover:opacity-90 active:scale-95"
+            style={
+              isSortedByTime 
+                ? {
+                    backgroundColor: `${currentCatDetails.colorHex}20`,
+                    borderColor: `${currentCatDetails.colorHex}40`,
+                    color: currentCatDetails.colorHex,
+                  }
+                : {
+                    backgroundColor: '#ffffff',
+                    borderColor: '#e5e5e5',
+                    color: '#525252',
+                  }
+            }
+            title={isSortedByTime ? '当前：按时间排序（再次点击恢复自定义顺序）' : '按时间排序（最紧急、有日期、无日期、已完成）'}
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span>{isSortedByTime ? '时间排序' : '自定义排序'}</span>
+          </button>
         </div>
 
         {/* Task Form Input */}
@@ -638,12 +960,12 @@ export default function TaskLibrary({
 
         {/* Filtered Task List */}
         <div id="tasks-list-container" className="space-y-2 overflow-y-auto max-h-[500px] pr-1">
-          {filteredTasks.length === 0 ? (
+          {displayTasks.length === 0 ? (
             <div className="text-center py-12 text-neutral-400 text-xs">
               暂无任务，快去添加一个吧！
             </div>
           ) : (
-            filteredTasks.map((task, idx) => {
+            displayTasks.map((task, idx) => {
               const isExpanded = expandedTaskId === task.id;
               const isTaskEditing = editingTaskId === task.id;
               const taskCat = categories.find(c => c.id === task.categoryId);
@@ -651,22 +973,87 @@ export default function TaskLibrary({
               return (
                 <div
                   key={task.id}
-                  draggable
-                  onDragStart={(e) => handleTaskDragStart(e, idx)}
-                  onDragOver={(e) => handleTaskDragOver(e, idx)}
-                  onDrop={(e) => handleTaskDrop(e, idx)}
-                  className={`border rounded-xl transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 shadow-sm hover:border-neutral-300'}`}
+                  draggable={!isExpanded && !isSortedByTime}
+                  onDragStart={(e) => {
+                    if (isExpanded || isSortedByTime) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleTaskDragStart(e, idx);
+                  }}
+                  onDragEnd={() => setDraggedTaskIndex(null)}
+                  onDragOver={(e) => {
+                    if (isExpanded || isSortedByTime) return;
+                    handleTaskDragOver(e, idx);
+                  }}
+                  onDrop={(e) => {
+                    if (isExpanded || isSortedByTime) return;
+                    handleTaskDrop(e, idx);
+                  }}
+                  className={`border rounded-xl overflow-hidden transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 shadow-sm hover:border-neutral-300'} ${draggedTaskIndex === idx ? 'opacity-30 border-neutral-200 bg-neutral-50/50' : ''}`}
                 >
                   {/* Task Header */}
                   <div 
                     className="p-3.5 flex items-center justify-between gap-3 group select-none cursor-pointer"
+                    onClick={(e) => {
+                      if (Date.now() - lastBlurTimeRef.current < 200) {
+                        return;
+                      }
+                      const target = e.target as HTMLElement;
+                      // Don't expand if clicking interactive elements, inputs, date picker, or title
+                      if (
+                        target.closest('button') || 
+                        target.closest('input') || 
+                        target.closest('select') || 
+                        target.closest('textarea') ||
+                        target.closest('.task-title-input') ||
+                        target.closest('.task-title-text') ||
+                        target.closest('.task-date-input') ||
+                        target.closest('.task-date-text') ||
+                        target.closest('.task-time-input') ||
+                        target.closest('.task-time-text') ||
+                        target.closest('.task-urgency-select') ||
+                        target.closest('.task-urgency-badge') ||
+                        target.closest('.task-urgency-placeholder')
+                      ) {
+                        return;
+                      }
+
+                      // Delay toggle with a timeout to allow double-clicks to cancel it
+                      if (clickTimeoutRef.current) {
+                        clearTimeout(clickTimeoutRef.current);
+                        clickTimeoutRef.current = null;
+                      }
+
+                      clickTimeoutRef.current = setTimeout(() => {
+                        setExpandedTaskId(isExpanded ? null : task.id);
+                        clickTimeoutRef.current = null;
+                      }, 200);
+                    }}
                     onDoubleClick={(e) => {
                       const target = e.target as HTMLElement;
-                      if (!target.closest('button') && !target.closest('input') && !target.closest('select') && !target.closest('textarea')) {
+                      if (
+                        !target.closest('button') && 
+                        !target.closest('input') && 
+                        !target.closest('select') && 
+                        !target.closest('textarea') &&
+                        !target.closest('.task-title-input') &&
+                        !target.closest('.task-date-input') &&
+                        !target.closest('.task-time-input') &&
+                        !target.closest('.task-time-text') &&
+                        !target.closest('.task-urgency-select') &&
+                        !target.closest('.task-urgency-badge') &&
+                        !target.closest('.task-urgency-placeholder')
+                      ) {
+                        // Cancel any pending single-click expand action
+                        if (clickTimeoutRef.current) {
+                          clearTimeout(clickTimeoutRef.current);
+                          clickTimeoutRef.current = null;
+                        }
                         startEditTask(task);
                       }
                     }}
-                    title="双击进入该任务的编辑界面"
+                    title="单击空白处展开/收起子任务，点击文字快速重命名，点击日期快速编辑日期，双击进入高级编辑"
                   >
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       
@@ -688,42 +1075,172 @@ export default function TaskLibrary({
                       {/* Task Info */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-1.5 flex-wrap">
-                          <span className={`text-sm font-medium truncate ${task.completed ? 'line-through text-neutral-400' : 'text-neutral-800'}`}>
-                            {task.title}
-                          </span>
+                          {inlineEditingTaskId === task.id ? (
+                            <input
+                              type="text"
+                              value={inlineEditTitle}
+                              onChange={(e) => setInlineEditTitle(e.target.value)}
+                              onBlur={() => handleSaveInlineTitle(task.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveInlineTitle(task.id);
+                                } else if (e.key === 'Escape') {
+                                  setInlineEditingTaskId(null);
+                                }
+                              }}
+                              className="task-title-input text-sm font-medium px-2 py-0.5 bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800 min-w-[200px]"
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInlineEditingTaskId(task.id);
+                                setInlineEditTitle(task.title);
+                              }}
+                              className="task-title-text text-sm font-medium truncate cursor-text hover:text-blue-600 transition text-neutral-800"
+                              title="点击快速编辑名称"
+                            >
+                              <span className={task.completed ? 'line-through text-neutral-400' : 'text-neutral-800'}>
+                                {task.title}
+                              </span>
+                            </span>
+                          )}
                           
                           {/* Urgency Indicator */}
                           {task.urgency === 'high' && (
-                            <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full font-bold flex items-center">
-                              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateTask(task.id, { urgency: 'medium' });
+                              }}
+                              className="task-urgency-badge text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full font-bold flex items-center cursor-pointer hover:bg-red-200 transition select-none"
+                              title="当前：高优先级。点击快速降级为中"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 mr-0.5 text-red-600" />
                               高
                             </span>
                           )}
                           {task.urgency === 'medium' && (
-                            <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-semibold">
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateTask(task.id, { urgency: 'low' });
+                              }}
+                              className="task-urgency-badge text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-semibold cursor-pointer hover:bg-orange-200 transition select-none"
+                              title="当前：中优先级。点击快速降级为低"
+                            >
                               中
+                            </span>
+                          )}
+                          {(task.urgency === 'low' || task.urgency === 'none') && (
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateTask(task.id, { urgency: 'high' });
+                              }}
+                              className="task-urgency-placeholder opacity-0 group-hover:opacity-100 transition duration-150 cursor-pointer text-neutral-300 hover:text-red-500 p-0.5 flex items-center"
+                              title="点击快速升级为高优先级"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
                             </span>
                           )}
                         </div>
 
                         {/* Optional Details preview */}
                         <div className="flex items-center space-x-3 text-[10px] text-neutral-400 mt-1 flex-wrap gap-y-1">
-                          {task.date && (
-                            <span className="flex items-center">
-                              <Calendar className="w-3 h-3 mr-1 text-neutral-400" />
-                              {task.date}
-                            </span>
+                          {(task.date || inlineEditingDateTaskId === task.id) && (
+                            <div className="flex items-center">
+                              {inlineEditingDateTaskId === task.id ? (
+                                <input 
+                                  type="date"
+                                  value={inlineEditDate}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setInlineEditDate(val);
+                                    onUpdateTask(task.id, { date: val });
+                                    setInlineEditingDateTaskId(null);
+                                    lastBlurTimeRef.current = Date.now();
+                                  }}
+                                  onBlur={() => {
+                                    setInlineEditingDateTaskId(null);
+                                    lastBlurTimeRef.current = Date.now();
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      onUpdateTask(task.id, { date: inlineEditDate });
+                                      setInlineEditingDateTaskId(null);
+                                      lastBlurTimeRef.current = Date.now();
+                                    } else if (e.key === 'Escape') {
+                                      setInlineEditingDateTaskId(null);
+                                    }
+                                  }}
+                                  className="task-date-input text-[10px] px-1.5 py-0.5 bg-white border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                <span 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInlineEditingDateTaskId(task.id);
+                                    setInlineEditDate(task.date || '');
+                                  }}
+                                  className="task-date-text flex items-center hover:text-blue-600 transition cursor-pointer select-none"
+                                  title="点击快速修改日期"
+                                >
+                                  <Calendar className="w-3 h-3 mr-1 text-neutral-400" />
+                                  {task.date}
+                                </span>
+                              )}
+                            </div>
                           )}
-                          {task.time && (
-                            <span className="flex items-center">
-                              <Clock className="w-3 h-3 mr-1 text-neutral-400" />
-                              {task.time}
-                            </span>
-                          )}
-                          {taskCat && (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${getCatColorClasses(taskCat.color).text} bg-${taskCat.color}-50`}>
-                              {taskCat.name}
-                            </span>
+                          {(task.time || inlineEditingTimeTaskId === task.id) && (
+                            <div className="flex items-center">
+                              {inlineEditingTimeTaskId === task.id ? (
+                                <input 
+                                  type="time"
+                                  value={inlineEditTime}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setInlineEditTime(val);
+                                    onUpdateTask(task.id, { time: val });
+                                    setInlineEditingTimeTaskId(null);
+                                    lastBlurTimeRef.current = Date.now();
+                                  }}
+                                  onBlur={() => {
+                                    setInlineEditingTimeTaskId(null);
+                                    lastBlurTimeRef.current = Date.now();
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      onUpdateTask(task.id, { time: inlineEditTime });
+                                      setInlineEditingTimeTaskId(null);
+                                      lastBlurTimeRef.current = Date.now();
+                                    } else if (e.key === 'Escape') {
+                                      setInlineEditingTimeTaskId(null);
+                                    }
+                                  }}
+                                  className="task-time-input text-[10px] px-1.5 py-0.5 bg-white border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                <span 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInlineEditingTimeTaskId(task.id);
+                                    setInlineEditTime(task.time || '');
+                                  }}
+                                  className="task-time-text flex items-center hover:text-blue-600 transition cursor-pointer select-none"
+                                  title="点击快速修改时间"
+                                >
+                                  <Clock className="w-3 h-3 mr-1 text-neutral-400" />
+                                  {task.time}
+                                </span>
+                              )}
+                            </div>
                           )}
                           {task.subtasks.length > 0 && (
                             <span>
@@ -736,24 +1253,8 @@ export default function TaskLibrary({
 
                     {/* Actions */}
                     <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-150">
-                      {/* Move Order buttons */}
-                      <button onClick={() => moveTask(idx, 'up')} disabled={idx === 0} className="p-1 rounded text-neutral-400 hover:text-neutral-700 disabled:opacity-30">
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => moveTask(idx, 'down')} disabled={idx === filteredTasks.length - 1} className="p-1 rounded text-neutral-400 hover:text-neutral-700 disabled:opacity-30">
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      
                       <button 
-                        onClick={() => startEditTask(task)}
-                        className="p-1 rounded hover:bg-neutral-100 text-neutral-500"
-                        title="二次编辑"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      
-                      <button 
-                        onClick={() => onDeleteTask(task.id)}
+                        onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
                         className="p-1 rounded hover:bg-red-50 text-red-500"
                         title="删除任务"
                       >
@@ -763,7 +1264,7 @@ export default function TaskLibrary({
 
                     {/* Expand Subtasks button */}
                     <button 
-                      onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                      onClick={(e) => { e.stopPropagation(); setExpandedTaskId(isExpanded ? null : task.id); }}
                       className="p-1 rounded-lg hover:bg-neutral-100 text-neutral-500 ml-1"
                     >
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -776,33 +1277,40 @@ export default function TaskLibrary({
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-1 bg-neutral-50/50 border-t border-neutral-100 rounded-b-xl space-y-3">
                       
-                      {/* Description display if exists */}
-                      {task.description && (
-                        <div className="text-xs text-neutral-500 bg-white p-2.5 rounded-lg border border-neutral-100 mt-2">
-                          <strong className="text-neutral-700 block text-[10px] uppercase tracking-wider mb-0.5">描述:</strong>
-                          {task.description}
-                        </div>
-                      )}
-
                       {/* Sub-tasks Section */}
                       <div className="space-y-1.5 mt-2">
-                        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">细分子任务</span>
+                        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">子任务</span>
                         
                         {/* Subtasks listing */}
-                        <div className="space-y-1 max-h-[180px] overflow-y-auto">
-                          {task.subtasks.length === 0 ? (
-                            <span className="text-[11px] text-neutral-400 block py-1 pl-1">暂无子任务</span>
-                          ) : (
+                        <div className="space-y-0.5 max-h-[180px] overflow-y-auto pr-0.5">
+                          {task.subtasks.length > 0 && (
                             task.subtasks.sort((a,b) => a.order - b.order).map((sub, sIdx) => (
-                              <div key={sub.id} className="flex items-center justify-between p-1.5 bg-white border border-neutral-100 rounded-lg group/sub text-xs">
-                                <div className="flex items-center space-x-2 flex-1 min-w-0">
-                                  <button onClick={() => toggleSubtask(task, sub.id)} className="text-neutral-400 hover:text-blue-500 transition">
+                              <div 
+                                key={sub.id} 
+                                draggable
+                                onDragStart={(e) => handleSubDragStart(e, sIdx)}
+                                onDragEnd={() => setDraggedSubIndex(null)}
+                                onDragOver={handleSubDragOver}
+                                onDrop={(e) => handleSubDrop(e, task, sIdx)}
+                                className={`flex items-center justify-between py-1 px-1.5 rounded-lg group/sub text-xs transition duration-150 ${draggedSubIndex === sIdx ? 'opacity-35 bg-neutral-100/50' : 'hover:bg-neutral-100/40'}`}
+                              >
+                                <div className="flex items-center space-x-1.5 flex-1 min-w-0">
+                                  {/* Drag Handle */}
+                                  <div 
+                                    className="cursor-grab active:cursor-grabbing p-0.5 text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/sub:opacity-100 transition-opacity"
+                                    title="拖曳调整顺序"
+                                  >
+                                    <GripVertical className="w-3.5 h-3.5" />
+                                  </div>
+
+                                  <button onClick={() => toggleSubtask(task, sub.id)} className="text-neutral-400 hover:text-blue-500 transition shrink-0">
                                     {sub.completed ? (
                                       <CheckSquare className="w-4 h-4 text-blue-500" />
                                     ) : (
                                       <Square className="w-4 h-4" />
                                     )}
                                   </button>
+
                                   {editingSubtaskId === sub.id ? (
                                     <input
                                       type="text"
@@ -817,27 +1325,22 @@ export default function TaskLibrary({
                                         }
                                       }}
                                       autoFocus
-                                      className="flex-1 text-xs px-1.5 py-0.5 bg-neutral-50 border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      className="flex-1 text-xs px-1.5 py-0.5 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      onClick={(e) => e.stopPropagation()}
                                     />
                                   ) : (
                                     <span 
                                       onClick={() => startEditSubtask(sub.id, sub.title)}
-                                      className={`truncate text-xs cursor-pointer hover:bg-neutral-50 hover:text-blue-600 px-1 py-0.5 rounded transition ${sub.completed ? 'line-through text-neutral-400' : 'text-neutral-700 font-medium'}`}
-                                      title="点击编辑子任务"
+                                      className={`truncate text-xs cursor-pointer hover:text-blue-600 px-1 py-0.5 rounded transition ${sub.completed ? 'line-through text-neutral-400' : 'text-neutral-700 font-medium'}`}
+                                      title="点击编辑"
                                     >
                                       {sub.title}
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center space-x-1 opacity-0 group-hover/sub:opacity-100 transition duration-150">
-                                  <button onClick={() => moveSubtask(task, sIdx, 'up')} disabled={sIdx === 0} className="p-0.5 text-neutral-400 hover:text-neutral-700 disabled:opacity-20">
-                                    <ArrowUp className="w-3 h-3" />
-                                  </button>
-                                  <button onClick={() => moveSubtask(task, sIdx, 'down')} disabled={sIdx === task.subtasks.length - 1} className="p-0.5 text-neutral-400 hover:text-neutral-700 disabled:opacity-20">
-                                    <ArrowDown className="w-3 h-3" />
-                                  </button>
-                                  <button onClick={() => deleteSubtask(task, sub.id)} className="p-0.5 text-red-400 hover:text-red-600">
-                                    <Trash2 className="w-3 h-3" />
+                                <div className="flex items-center space-x-1 opacity-0 group-hover/sub:opacity-100 transition duration-150 shrink-0">
+                                  <button onClick={() => deleteSubtask(task, sub.id)} className="p-1 text-neutral-400 hover:text-red-500 hover:bg-neutral-100 rounded transition" title="删除">
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
@@ -885,13 +1388,13 @@ export default function TaskLibrary({
       {/* PREMIUM FULL TASK EDIT MODAL (Saves changes immediately) */}
       {editingTaskId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-neutral-200 p-6 w-full max-w-2xl shadow-2xl space-y-5 text-xs relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-4 w-full max-w-2xl shadow-2xl space-y-3 text-xs relative max-h-[90vh] overflow-y-auto">
             
             {/* Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
               <span className="font-extrabold text-neutral-800 text-sm flex items-center">
                 <Edit2 className="w-4 h-4 mr-2 text-blue-500" />
-                编辑日程任务
+                任务编辑
               </span>
               <button 
                 type="button" 
@@ -903,38 +1406,38 @@ export default function TaskLibrary({
             </div>
 
             {/* Layout Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-7 items-start">
               
               {/* Left Column: Basic Details */}
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">任务名称</label>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务名称</label>
                   <input
                     type="text"
                     value={editTaskTitle}
                     onChange={(e) => setEditTaskTitle(e.target.value)}
                     placeholder="输入日程任务标题..."
-                    className="w-full p-3 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl font-bold text-xs focus:outline-none transition-all placeholder-neutral-400"
+                    className="w-full py-2 px-2.5 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl font-bold text-xs focus:outline-none transition-all placeholder-neutral-400"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">描述信息</label>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">描述信息</label>
                   <textarea
                     value={editTaskDesc}
                     onChange={(e) => setEditTaskDesc(e.target.value)}
                     placeholder="添加任务备注或说明细节..."
-                    className="w-full p-3 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl text-xs h-28 focus:outline-none transition-all resize-none placeholder-neutral-400"
+                    className="w-full py-2 px-2.5 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-200 focus:border-blue-500 rounded-xl text-xs h-16 focus:outline-none transition-all resize-none placeholder-neutral-400"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">所属分类</label>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务分类</label>
                     <select
                       value={editTaskCatId}
                       onChange={(e) => setEditTaskCatId(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
+                      className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
                     >
                       <option value="">未分类</option>
                       {categories.map(c => (
@@ -944,33 +1447,33 @@ export default function TaskLibrary({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">优先级标记</label>
+                    <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">优先级</label>
                     <select
                       value={editTaskUrgency}
                       onChange={(e) => setEditTaskUrgency(e.target.value as Urgency)}
-                      className="w-full p-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
+                      className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
                     >
-                      <option value="none">未设置 (默认)</option>
-                      <option value="low">🟢 低优先级</option>
-                      <option value="medium">🟡 中优先级</option>
-                      <option value="high">🔴 高优先级</option>
+                      <option value="none">无</option>
+                      <option value="low">🟩 低</option>
+                      <option value="medium">🟨 中</option>
+                      <option value="high">🟥 高</option>
                     </select>
                   </div>
                 </div>
               </div>
 
               {/* Right Column: Scheduling & Repeating (Visual Shaded Card) */}
-              <div className="bg-neutral-50/70 p-4 rounded-2xl border border-neutral-100 space-y-4">
+              <div className="space-y-2.5">
                 
                 {/* Schedule Type Tabs */}
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1.5">排程维度</label>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务排期</label>
                   <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 rounded-xl border border-neutral-200/60">
                     {(
                       [
-                        { value: 'date', label: '具体天' },
-                        { value: 'week', label: '特定周' },
-                        { value: 'month', label: '特定月' },
+                        { value: 'date', label: '天' },
+                        { value: 'week', label: '周' },
+                        { value: 'month', label: '月' },
                         { value: 'none', label: '待安排' }
                       ] as const
                     ).map(opt => (
@@ -978,7 +1481,7 @@ export default function TaskLibrary({
                         key={opt.value}
                         type="button"
                         onClick={() => setEditTaskScheduleType(opt.value)}
-                        className={`py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                           editTaskScheduleType === opt.value
                             ? 'bg-white text-neutral-800 shadow-sm'
                             : 'text-neutral-500 hover:text-neutral-700'
@@ -991,12 +1494,12 @@ export default function TaskLibrary({
                 </div>
 
                 {/* Dynamic Content based on Schedule Type */}
-                <div className="min-h-[120px] flex flex-col justify-center">
+                <div className="mt-2">
                   {editTaskScheduleType === 'date' && (
-                    <div className="space-y-3 w-full animate-fade-in">
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2.5 w-full animate-fade-in">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-1">开始日期</label>
+                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
                           <input
                             type="date"
                             value={editTaskDate}
@@ -1007,11 +1510,11 @@ export default function TaskLibrary({
                                 setEditTaskEndDate('');
                               }
                             }}
-                            className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
+                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-1">结束日期 (可选)</label>
+                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
                           <input
                             type="date"
                             value={editTaskEndDate}
@@ -1024,27 +1527,27 @@ export default function TaskLibrary({
                               }
                             }}
                             min={editTaskDate}
-                            className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
+                            className="w-full py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none transition-all shadow-sm"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-neutral-500 block mb-1">具体时间 (可选)</label>
-                        <div className="relative flex items-center">
+                        <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">具体时间</label>
+                        <div className="flex gap-2">
                           <input
                             type="time"
-                            value={editTaskTime}
+                            value={editTaskTime || ''}
                             onChange={(e) => setEditTaskTime(e.target.value)}
-                            className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none pr-8 shadow-sm"
+                            className="flex-1 py-2 px-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm"
                           />
                           {editTaskTime && (
                             <button
                               type="button"
                               onClick={() => setEditTaskTime('')}
-                              className="absolute right-2.5 text-neutral-400 hover:text-red-500 transition cursor-pointer"
+                              className="px-3 bg-neutral-100 hover:bg-red-50 hover:text-red-600 text-neutral-500 rounded-xl text-xs font-bold transition-all border border-neutral-200/60 cursor-pointer flex items-center justify-center shrink-0"
                               title="清除时间"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              清除
                             </button>
                           )}
                         </div>
@@ -1053,98 +1556,96 @@ export default function TaskLibrary({
                   )}
 
                   {editTaskScheduleType === 'week' && (
-                    <div className="space-y-2.5 w-full animate-fade-in">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择特定周 (输入该周的周一日期)</label>
+                    <div className="w-full animate-fade-in space-y-1">
+                      <label className="text-[10px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
                       <input
                         type="date"
                         value={editTaskScheduledWeek}
                         onChange={(e) => {
-                          const d = new Date(e.target.value);
+                          const val = e.target.value;
+                          if (!val) {
+                            setEditTaskScheduledWeek('');
+                            return;
+                          }
+                          const d = new Date(val);
                           if (!isNaN(d.getTime())) {
                             const day = d.getDay();
                             const diff = d.getDate() - day + (day === 0 ? -6 : 1);
                             const monday = new Date(d.setDate(diff));
                             setEditTaskScheduledWeek(formatDate(monday));
                           } else {
-                            setEditTaskScheduledWeek(e.target.value);
+                            setEditTaskScheduledWeek(val);
                           }
                         }}
-                        className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm"
+                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
                       />
-                      <div className="text-[10px] text-amber-700 bg-amber-50/80 p-3 rounded-xl border border-amber-100/60 leading-normal flex items-start space-x-1.5 shadow-sm">
-                        <span className="text-amber-500 text-sm leading-none">💡</span>
-                        <span>任务将被安排至周一为 <b>{editTaskScheduledWeek || '(请选择)'}</b> 的那个星期，并在「本周日程清单」中突出显示。</span>
-                      </div>
+                      {editTaskScheduledWeek && (
+                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                          已选中：{getWeekOptionLabel(editTaskScheduledWeek)}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {editTaskScheduleType === 'month' && (
-                    <div className="space-y-2.5 w-full animate-fade-in">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择特定月份</label>
+                    <div className="w-full animate-fade-in space-y-1">
+                      <label className="text-[10px] font-bold text-neutral-500 block">选择月份</label>
                       <input
                         type="month"
                         value={editTaskScheduledMonth}
                         onChange={(e) => setEditTaskScheduledMonth(e.target.value)}
-                        className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm"
+                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none shadow-sm transition-all cursor-pointer"
                       />
-                      <div className="text-[10px] text-amber-700 bg-amber-50/80 p-3 rounded-xl border border-amber-100/60 leading-normal flex items-start space-x-1.5 shadow-sm">
-                        <span className="text-amber-500 text-sm leading-none">💡</span>
-                        <span>任务将被安排至 <b>{editTaskScheduledMonth || '(请选择)'}</b> 这个月，并在「本月日程清单」中突出显示。</span>
-                      </div>
+                      {editTaskScheduledMonth && (
+                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                          已选中：{getMonthOptionLabel(editTaskScheduledMonth, 100)}
+                        </p>
+                      )}
                     </div>
                   )}
 
-                  {editTaskScheduleType === 'none' && (
-                    <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/80 leading-normal flex items-start space-x-1.5 animate-fade-in shadow-sm w-full">
-                      <span className="text-blue-500 text-sm leading-none">📌</span>
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-extrabold text-blue-800 block">待安排/未定日程</span>
-                        <span className="text-[10px] text-blue-600 block leading-relaxed font-medium">
-                          任务将不关联任何具体日期、星期或月份，并安全保存至底部的「待安排」任务池中，支持通过拖拽随心安排。
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  {editTaskScheduleType === 'none' && null}
                 </div>
 
                 {/* Repeating and Reminder side by side */}
-                <div className="grid grid-cols-2 gap-3 border-t border-neutral-200/50 pt-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">重复设置</label>
-                    <select
-                      value={editTaskRepeat}
-                      onChange={(e) => setEditTaskRepeat(e.target.value as any)}
-                      className="w-full p-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
-                    >
-                      <option value="none">🔄 不重复</option>
-                      <option value="daily">📅 每天</option>
-                      <option value="weekly">📅 每周</option>
-                      <option value="weekly-friday">📅 每周五</option>
-                      <option value="monthly">📅 每月</option>
-                    </select>
+                {editTaskScheduleType === 'date' && (
+                  <div className="grid grid-cols-2 gap-2 border-t border-neutral-200/50 pt-2.5">
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">重复设置</label>
+                      <select
+                        value={editTaskRepeat}
+                        onChange={(e) => setEditTaskRepeat(e.target.value as any)}
+                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
+                      >
+                        <option value="none">不重复</option>
+                        <option value="daily">每天</option>
+                        <option value="weekly">每周</option>
+                        <option value="monthly">每月</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">提醒</label>
+                      <select
+                        value={editTaskReminder}
+                        onChange={(e) => setEditTaskReminder(e.target.value as any)}
+                        className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
+                      >
+                        <option value="none">无提醒</option>
+                        <option value="5m">5 分钟前</option>
+                        <option value="15m">15 分钟前</option>
+                        <option value="1h">1 小时前</option>
+                        <option value="1d">1 天前</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-1">提前提醒</label>
-                    <select
-                      value={editTaskReminder}
-                      onChange={(e) => setEditTaskReminder(e.target.value as any)}
-                      className="w-full p-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
-                    >
-                      <option value="none">🔔 无提醒</option>
-                      <option value="5m">5 分钟前</option>
-                      <option value="15m">15 分钟前</option>
-                      <option value="1h">1 小时前</option>
-                      <option value="1d">1 天前</option>
-                    </select>
-                  </div>
-                </div>
+                )}
 
               </div>
 
             </div>
 
             {/* Actions Bar */}
-            <div className="flex items-center justify-between pt-4 border-t border-neutral-100 gap-3">
+            <div className="flex items-center justify-between pt-3 border-t border-neutral-100 gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1153,25 +1654,25 @@ export default function TaskLibrary({
                     setEditingTaskId(null);
                   }
                 }}
-                className="px-3.5 py-2.5 bg-red-50 hover:bg-red-100/80 text-red-600 rounded-xl font-extrabold transition flex items-center border border-red-200/50 shadow-sm cursor-pointer"
-                title="彻底删除此任务"
+                className="px-3 py-2 bg-red-50 hover:bg-red-100/80 text-red-600 rounded-xl font-extrabold transition flex items-center border border-red-200/50 shadow-sm cursor-pointer"
+                title="删除此任务"
               >
                 <Trash className="w-3.5 h-3.5 mr-1.5" />
-                彻底删除
+                删除
               </button>
 
               <div className="flex space-x-2">
                 <button 
                   type="button" 
                   onClick={() => setEditingTaskId(null)}
-                  className="px-4 py-2.5 bg-neutral-100 text-neutral-600 rounded-xl font-extrabold hover:bg-neutral-200 transition cursor-pointer"
+                  className="px-3.5 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-extrabold hover:bg-neutral-200 transition cursor-pointer"
                 >
                   取消
                 </button>
                 <button 
                   type="button" 
                   onClick={() => handleSaveTaskEdits(editingTaskId)}
-                  className="px-6 py-2.5 bg-neutral-800 hover:bg-neutral-900 text-white font-extrabold rounded-xl shadow-md transition cursor-pointer"
+                  className="px-5 py-2 bg-neutral-800 hover:bg-neutral-900 text-white font-extrabold rounded-xl shadow-md transition cursor-pointer"
                 >
                   保存修改
                 </button>

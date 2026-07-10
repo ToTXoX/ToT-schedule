@@ -1,6 +1,6 @@
 export type Urgency = 'none' | 'low' | 'medium' | 'high';
 
-export type MoodEmoji = '愤怒' | '不开心' | '一般' | '开心' | '超级开心' | '';
+export type MoodEmoji = '生气！' | '不开心' | '一般' | '开心' | '超级开心' | '';
 
 export interface Subtask {
   id: string;

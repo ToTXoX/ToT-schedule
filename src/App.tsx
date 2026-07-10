@@ -5,7 +5,6 @@ import {
 } from './types';
 import TaskLibrary from './components/TaskLibrary';
 import CalendarSection from './components/CalendarSection';
-import NaturalLanguageInput from './components/NaturalLanguageInput';
 import { 
   Calendar as CalendarIcon, ListTodo, Sparkles, Clock, Bell, Settings, Check, 
   HelpCircle, Eye, RefreshCw, Layers, ShieldAlert, ArrowRight, Heart
@@ -13,10 +12,10 @@ import {
 
 // Preset Category Defaults
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-work', name: '工作任务', color: 'blue', colorHex: '#3b82f6', order: 0, visible: true },
-  { id: 'cat-study', name: '学习计划', color: 'purple', colorHex: '#a855f7', order: 1, visible: true },
-  { id: 'cat-life', name: '生活杂务', color: 'green', colorHex: '#10b981', order: 2, visible: true },
-  { id: 'cat-fitness', name: '运动健身', color: 'orange', colorHex: '#f97316', order: 3, visible: true }
+  { id: 'cat-work', name: '工作任务', color: 'blue', colorHex: '#4cc9f0', order: 0, visible: true },
+  { id: 'cat-study', name: '学习计划', color: 'purple', colorHex: '#b388ff', order: 1, visible: true },
+  { id: 'cat-life', name: '生活杂务', color: 'green', colorHex: '#52b788', order: 2, visible: true },
+  { id: 'cat-fitness', name: '运动健身', color: 'orange', colorHex: '#ffb5a7', order: 3, visible: true }
 ];
 
 // Preset Task Defaults (Prepopulated with mock data relative to current baseline 2026-07-06)
@@ -118,11 +117,20 @@ export default function App() {
     return saved ? JSON.parse(saved) : DEFAULT_MOODS;
   });
 
+  // User Profile State
+  const [userName, setUserName] = useState<string>(() => {
+    return localStorage.getItem('planner_user_name') || 'ToT';
+  });
+  const [userAvatar, setUserAvatar] = useState<string>(() => {
+    return localStorage.getItem('planner_user_avatar') || '🐱';
+  });
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+
   // UI State
   const [activeTab, setActiveTab] = useState<'calendar' | 'tasks'>('calendar');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | 'all' | 'unscheduled'>('all');
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const [isAiOnline, setIsAiOnline] = useState(false);
 
   // System time updater
   useEffect(() => {
@@ -137,6 +145,14 @@ export default function App() {
   }, []);
 
   // Sync state with LocalStorage
+  useEffect(() => {
+    localStorage.setItem('planner_user_name', userName);
+  }, [userName]);
+
+  useEffect(() => {
+    localStorage.setItem('planner_user_avatar', userAvatar);
+  }, [userAvatar]);
+
   useEffect(() => {
     localStorage.setItem('planner_categories', JSON.stringify(categories));
   }, [categories]);
@@ -153,35 +169,48 @@ export default function App() {
     localStorage.setItem('planner_moods', JSON.stringify(moods));
   }, [moods]);
 
-  // Check AI (Gemini) endpoint status
-  useEffect(() => {
-    fetch('/api/ai-status')
-      .then(res => res.json())
-      .then(data => {
-        setIsAiOnline(!!data.ready);
-      })
-      .catch(() => {
-        setIsAiOnline(false);
-      });
-  }, []);
-
   // --- CRUD OPERATORS ---
 
   // Category
   const handleAddCategory = (name: string, color: string) => {
     const hexMap: { [key: string]: string } = {
-      sky: '#0ea5e9',
-      blue: '#1d4ed8',
+      'red-light': '#ffe4e6',
+      'red-medium': '#fda4af',
+      'red-dark': '#f43f5e',
+      'orange-light': '#ffedd5',
+      'orange-medium': '#fdba74',
+      'orange-dark': '#f97316',
+      'yellow-light': '#fef3c7',
+      'yellow-medium': '#fcd34d',
+      'yellow-dark': '#f59e0b',
+      'green-light': '#dcfce7',
+      'green-medium': '#6ee7b7',
+      'green-dark': '#10b981',
+      'blue-light': '#e0f2fe',
+      'blue-medium': '#7dd3fc',
+      'blue-dark': '#0284c7',
+      'indigo-light': '#e0e7ff',
+      'indigo-medium': '#a5b4fc',
+      'indigo-dark': '#6366f1',
+      'purple-light': '#f3e8ff',
+      'purple-medium': '#d8b4fe',
+      'purple-dark': '#a855f7',
+      'gray-light': '#f1f5f9',
+      'gray-medium': '#cbd5e1',
+      'gray-dark': '#64748b',
+      // Backward compatibility for existing categories
+      sky: '#5fa8d3',
+      blue: '#4cc9f0',
       lavender: '#c084fc',
-      purple: '#7e22ce',
-      lime: '#4ade80',
-      green: '#15803d',
-      amber: '#fbbf24',
-      orange: '#c2410c',
-      rose: '#f43f5e',
-      red: '#b91c1c',
-      'slate-light': '#94a3b8',
-      slate: '#334155'
+      purple: '#b388ff',
+      lime: '#80ed99',
+      green: '#52b788',
+      amber: '#ffd166',
+      orange: '#ffb5a7',
+      rose: '#ffccd5',
+      red: '#f28482',
+      'slate-light': '#cbd5e1',
+      slate: '#ddb892'
     };
     const newCat: Category = {
       id: `cat-${Math.random().toString(36).substring(2, 9)}`,
@@ -195,7 +224,17 @@ export default function App() {
   };
 
   const handleUpdateCategory = (id: string, updates: Partial<Category>) => {
-    setCategories(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  const handleUpdateCategories = (batch: { id: string; updates: Partial<Category> }[]) => {
+    setCategories(prev => {
+      const idToUpdates = new Map(batch.map(item => [item.id, item.updates]));
+      return prev.map(c => {
+        const u = idToUpdates.get(c.id);
+        return u ? { ...c, ...u } : c;
+      });
+    });
   };
 
   const handleDeleteCategory = (id: string) => {
@@ -308,150 +347,203 @@ export default function App() {
   const urgentTasks = tasks.filter(t => t.urgency === 'high' && !t.completed);
 
   return (
-    <div className="min-h-screen bg-slate-900 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.25),rgba(255,255,255,0))] font-sans antialiased text-neutral-800 p-3 sm:p-5 flex flex-col justify-between">
+    <div className="min-h-screen bg-[#fafaf9] font-sans antialiased text-neutral-800 p-3 sm:p-5 flex flex-col justify-between">
       
-      {/* 1. macOS Menu/Status Bar */}
-      <header className="max-w-7xl w-full mx-auto bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 px-4 py-2 flex items-center justify-between text-xs text-white/80 shadow-md mb-4 select-none relative z-50">
-        <div className="flex items-center space-x-4">
-          <span className="font-bold text-white tracking-wider flex items-center">
-            <Layers className="w-4 h-4 mr-1.5 text-blue-400" />
-            iSchedule Planner
-          </span>
-          <span className="h-3 w-px bg-white/20" />
-          <div className="hidden sm:flex items-center space-x-2 text-[11px] text-white/60">
-            <span className={`w-2 h-2 rounded-full ${isAiOnline ? 'bg-green-500 animate-pulse' : 'bg-amber-400'}`} />
-            <span>AI 解析服务: {isAiOnline ? '在线' : '离线 (本地保存正常)'}</span>
-          </div>
-        </div>
-
-        {/* Right Info: Clock, Notification Trigger */}
-        <div className="flex items-center space-x-4 relative">
-          
-          {/* Notifications Indicator */}
-          <button
-            id="btn-bell-toggle"
-            onClick={() => setShowNotificationCenter(!showNotificationCenter)}
-            className="p-1.5 rounded-lg hover:bg-white/10 transition relative focus:outline-none"
-          >
-            <Bell className="w-4 h-4" />
-            {todayTasks.length > 0 && (
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
-            )}
-          </button>
-
-          {/* Clock Display */}
-          <div className="text-right flex items-center space-x-2">
-            <Clock className="w-3.5 h-3.5 text-white/60" />
-            <span className="font-mono font-medium text-white text-[11px]">
-              {formatTimeStr(systemTime)}
-            </span>
-            <span className="hidden md:inline text-white/60 text-[11px]">
-              {formatDateStr(systemTime)}
-            </span>
-          </div>
-
-          {/* Push Notification Center overlay */}
-          <AnimatePresence>
-            {showNotificationCenter && (
-              <motion.div
-                id="notification-center-dropdown"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 top-10 w-72 bg-neutral-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-4 shadow-2xl z-50 text-white space-y-4"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <span className="font-bold text-xs text-white flex items-center">
-                    <Bell className="w-3.5 h-3.5 mr-1 text-yellow-400" />
-                    今日提醒推送 ({todayTasks.length})
-                  </span>
-                  <button 
-                    onClick={() => setShowNotificationCenter(false)}
-                    className="text-[10px] text-white/50 hover:text-white"
-                  >
-                    关闭
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                  {todayTasks.length === 0 ? (
-                    <div className="text-center py-6 text-[11px] text-white/40 italic">
-                      今日无剩余未完成任务，安心休息吧！
-                    </div>
-                  ) : (
-                    todayTasks.map(t => (
-                      <div key={t.id} className="p-2 bg-white/5 rounded-xl border border-white/5 text-[11px] space-y-1">
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="truncate">{t.title}</span>
-                          {t.time && <span className="text-blue-300 text-[10px]">{t.time}</span>}
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-white/50">
-                          <span>
-                            {categories.find(c => c.id === t.categoryId)?.name || '未分类'}
-                          </span>
-                          {t.urgency === 'high' && (
-                            <span className="text-red-400 font-bold flex items-center">
-                              <ShieldAlert className="w-2.5 h-2.5 mr-0.5" />
-                              高优先级
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {urgentTasks.length > 0 && (
-                  <div className="pt-2 border-t border-white/10">
-                    <span className="text-[10px] font-semibold text-red-400 block mb-1">
-                      ⚠️ 待办急件提醒 ({urgentTasks.length})
-                    </span>
-                    <div className="text-[10px] text-white/60 space-y-1">
-                      {urgentTasks.slice(0, 2).map(ut => (
-                        <div key={ut.id} className="truncate">• {ut.title} ({ut.date || '无日期'})</div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </div>
-      </header>
-
-      {/* 2. Main Windows App layout */}
+      {/* 1. Main Windows App layout */}
       <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col space-y-4">
         
-        {/* Natural Language AI Input Bar */}
-        <NaturalLanguageInput
-          categories={categories}
-          onParsedTaskAdded={handleParsedTaskAdded}
-          currentDateStr={currentDateStr}
-        />
-
         {/* Core desktop window with Frosted Sidebar and Workspace */}
         <div className="flex-1 bg-white/90 backdrop-blur-md border border-neutral-200/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
           
           {/* Windows Header Tab Selector */}
-          <div className="bg-neutral-50 px-6 py-3 border-b border-neutral-100 flex items-center justify-between">
-            <div className="flex items-center space-x-1.5 bg-neutral-200/60 p-1 rounded-2xl border border-neutral-200">
+          <div className="bg-white px-6 py-4 border-b border-neutral-100 flex items-center justify-between relative z-50">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              {/* User Avatar Section */}
+              <div className="flex items-center space-x-2 bg-neutral-100/60 pl-1.5 pr-2.5 py-1 rounded-2xl border border-neutral-200/40 relative">
+                {/* Emoji Avatar Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+                  className="w-6 h-6 rounded-xl bg-white shadow-sm flex items-center justify-center hover:scale-110 active:scale-95 transition cursor-pointer text-xs select-none"
+                  title="点击更换头像"
+                >
+                  {userAvatar}
+                </button>
+
+                {/* Name inline editable */}
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    onBlur={() => setIsEditingName(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setIsEditingName(false);
+                      }
+                    }}
+                    autoFocus
+                    className="w-14 bg-transparent outline-none border-b border-blue-400 font-bold text-neutral-700 text-[11px] px-0.5"
+                    maxLength={10}
+                  />
+                ) : (
+                  <span
+                    onClick={() => setIsEditingName(true)}
+                    className="font-bold text-neutral-600 hover:text-blue-600 transition cursor-pointer text-[11px] select-none"
+                    title="点击修改名字"
+                  >
+                    {userName || 'ToT'}
+                  </span>
+                )}
+
+                {/* Avatar Picker Dropdown */}
+                <AnimatePresence>
+                  {showAvatarPicker && (
+                    <>
+                      {/* Invisible backdrop to close on outside click */}
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowAvatarPicker(false)} 
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                        className="absolute left-0 top-9 mt-1 p-2 bg-white/95 backdrop-blur-md border border-neutral-200 rounded-2xl shadow-xl z-50 grid grid-cols-5 gap-1 w-40"
+                      >
+                        {['🐱', '🐶', '🦊', '🦁', '🐯', '🐼', '🐨', '🐰', '🐻', '🐸', '🐷', '🐵', '🐔', '🐧', '🦉', '🦆', '🦖', '🦄', '🐝', '🐙'].map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setUserAvatar(emoji);
+                              setShowAvatarPicker(false);
+                            }}
+                            className="w-6 h-6 flex items-center justify-center hover:bg-neutral-100 rounded-lg text-sm transition cursor-pointer"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex items-center space-x-1.5 bg-neutral-100/60 p-1 rounded-2xl border border-neutral-200/40">
+                <button
+                  id="tab-btn-calendar"
+                  onClick={() => setActiveTab('calendar')}
+                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'calendar' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                >
+                  <CalendarIcon className="w-4 h-4 text-blue-500" />
+                  <span>日历</span>
+                </button>
+                <button
+                  id="tab-btn-tasks"
+                  onClick={() => setActiveTab('tasks')}
+                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'tasks' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                >
+                  <ListTodo className="w-4 h-4 text-purple-500" />
+                  <span>任务库</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right Info: Clock, Notification Trigger */}
+            <div className="flex items-center space-x-3.5 sm:space-x-4 relative text-xs text-neutral-600">
+              
+              {/* Notifications Indicator */}
               <button
-                id="tab-btn-calendar"
-                onClick={() => setActiveTab('calendar')}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition ${activeTab === 'calendar' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+                id="btn-bell-toggle"
+                onClick={() => setShowNotificationCenter(!showNotificationCenter)}
+                className="p-1.5 rounded-lg hover:bg-neutral-100/80 text-neutral-500 transition relative focus:outline-none cursor-pointer"
               >
-                <CalendarIcon className="w-4 h-4 text-blue-500" />
-                <span>日历视图规划</span>
+                <Bell className="w-4 h-4" />
+                {todayTasks.length > 0 && (
+                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+                )}
               </button>
-              <button
-                id="tab-btn-tasks"
-                onClick={() => setActiveTab('tasks')}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition ${activeTab === 'tasks' ? 'bg-white text-neutral-800 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
-              >
-                <ListTodo className="w-4 h-4 text-purple-500" />
-                <span>清单任务库</span>
-              </button>
+
+              {/* Clock Display */}
+              <div className="text-right flex items-center space-x-2 select-none">
+                <Clock className="w-3.5 h-3.5 text-neutral-400" />
+                <span className="font-mono font-medium text-neutral-700 text-[11px]">
+                  {formatTimeStr(systemTime)}
+                </span>
+                <span className="hidden md:inline text-neutral-400 text-[11px]">
+                  {formatDateStr(systemTime)}
+                </span>
+              </div>
+
+              {/* Push Notification Center overlay */}
+              <AnimatePresence>
+                {showNotificationCenter && (
+                  <motion.div
+                    id="notification-center-dropdown"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 top-11 w-72 bg-white/95 backdrop-blur-md border border-neutral-200 rounded-2xl p-4 shadow-xl z-50 text-neutral-800 space-y-4"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+                      <span className="font-extrabold text-xs text-neutral-800 flex items-center">
+                        <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                        今日提醒推送 ({todayTasks.length})
+                      </span>
+                      <button 
+                        onClick={() => setShowNotificationCenter(false)}
+                        className="text-[10px] text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                      >
+                        关闭
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {todayTasks.length === 0 ? (
+                        <div className="text-center py-6 text-[11px] text-neutral-400 italic">
+                          今日无剩余未完成任务，安心休息吧！
+                        </div>
+                      ) : (
+                        todayTasks.map(t => (
+                          <div key={t.id} className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-100 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between font-extrabold text-neutral-800">
+                              <span className="truncate">{t.title}</span>
+                              {t.time && <span className="text-blue-600 font-mono text-[10px]">{t.time}</span>}
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                              <span>
+                                {categories.find(c => c.id === t.categoryId)?.name || '未分类'}
+                              </span>
+                              {t.urgency === 'high' && (
+                                <span className="text-red-500 font-extrabold flex items-center">
+                                  <ShieldAlert className="w-2.5 h-2.5 mr-0.5" />
+                                  高优先级
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {urgentTasks.length > 0 && (
+                      <div className="pt-2.5 border-t border-neutral-100">
+                        <span className="text-[10px] font-extrabold text-red-500 block mb-1">
+                          ⚠️ 待办急件提醒 ({urgentTasks.length})
+                        </span>
+                        <div className="text-[10px] text-neutral-500 space-y-1">
+                          {urgentTasks.slice(0, 2).map(ut => (
+                            <div key={ut.id} className="truncate">• {ut.title} ({ut.date || '无日期'})</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
             </div>
           </div>
 
@@ -477,6 +569,7 @@ export default function App() {
                     onUpdateTask={handleUpdateTask}
                     onDeleteTask={handleDeleteTask}
                     onUpdateCategory={handleUpdateCategory}
+                    onUpdateCategories={handleUpdateCategories}
                     onAddNote={handleAddNote}
                     onUpdateNote={handleUpdateNote}
                     onDeleteNote={handleDeleteNote}
@@ -517,14 +610,14 @@ export default function App() {
       </main>
 
       {/* 3. Footer */}
-      <footer className="max-w-7xl w-full mx-auto text-center text-[10px] text-white/40 pt-4 pb-2 flex flex-col sm:flex-row items-center justify-between select-none">
+      <footer className="max-w-7xl w-full mx-auto text-center text-[10px] text-neutral-400 pt-5 pb-2 flex flex-col sm:flex-row items-center justify-between select-none">
         <div>
           © 2026 iSchedule Applet. Inspired by Apple Reminders & Calendar.
         </div>
-        <div className="flex items-center space-x-1.5 mt-2 sm:mt-0 text-white/50">
+        <div className="flex items-center space-x-1.5 mt-2 sm:mt-0 text-neutral-400">
           <span>用</span>
-          <Heart className="w-3.5 h-3.5 text-red-500 inline fill-red-500" />
-          <span>与 Gemini AI 协同规划每一天</span>
+          <Heart className="w-3.5 h-3.5 text-rose-500 inline fill-rose-500" />
+          <span>精心规划每一天</span>
         </div>
       </footer>
 
