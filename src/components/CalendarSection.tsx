@@ -674,11 +674,13 @@ export default function CalendarSection({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleTaskDragEnd = () => {
+  const clearTaskDragState = () => {
     draggedTaskRef.current = null;
     setDraggedTaskId(null);
     setTaskDropIndicator(null);
   };
+
+  const handleTaskDragEnd = clearTaskDragState;
 
   const getTaskDragPayload = (e: React.DragEvent): TaskDragPayload | null => {
     const serializedPayload =
@@ -761,8 +763,8 @@ export default function CalendarSection({
 
   const handleTaskDropOnDate = (e: React.DragEvent, dateStr: string) => {
     e.preventDefault();
-    setTaskDropIndicator(null);
     const payload = getTaskDragPayload(e);
+    clearTaskDragState();
     if (payload) {
       const { taskId } = payload;
       const task = tasks.find(t => t.id === taskId);
@@ -795,8 +797,8 @@ export default function CalendarSection({
     e.preventDefault();
     e.stopPropagation();
     const position = getPointerDropPosition(e);
-    setTaskDropIndicator(null);
     const payload = getTaskDragPayload(e);
+    clearTaskDragState();
     if (!payload || payload.taskId === targetTask.id) return;
     const { taskId } = payload;
     const targetDateTasks = tasks.filter(task => task.date === targetDateStr);
@@ -836,6 +838,7 @@ export default function CalendarSection({
   const handleTaskRemoveSchedule = (e: React.DragEvent) => {
     e.preventDefault();
     const payload = getTaskDragPayload(e);
+    clearTaskDragState();
     if (payload) {
       const { taskId } = payload;
       onUpdateTask(taskId, { 
@@ -1027,8 +1030,8 @@ export default function CalendarSection({
     e.preventDefault();
     e.stopPropagation();
     const position = getPointerDropPosition(e);
-    setTaskDropIndicator(null);
     const payload = getTaskDragPayload(e);
+    clearTaskDragState();
     if (!payload || payload.taskId === targetTask.id) return;
     const { taskId } = payload;
 
@@ -1068,8 +1071,8 @@ export default function CalendarSection({
 
   const handleUnscheduledContainerDrop = (e: React.DragEvent, view: 'week' | 'month') => {
     e.preventDefault();
-    setTaskDropIndicator(null);
     const payload = getTaskDragPayload(e);
+    clearTaskDragState();
     if (!payload) return;
     const { taskId } = payload;
 
