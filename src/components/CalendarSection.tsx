@@ -1304,8 +1304,9 @@ export default function CalendarSection({
               <button 
                 id="btn-calendar-today"
                 onClick={() => {
-                  setBaseDate(new Date(currentDateStr));
-                  setSelectedDateStr(currentDateStr);
+                  const actualToday = new Date();
+                  setBaseDate(actualToday);
+                  setSelectedDateStr(getRealTodayStr());
                 }}
                 className="text-xs px-2.5 py-1 rounded-lg hover:bg-white text-neutral-700 font-bold transition hover:shadow-sm cursor-pointer"
               >

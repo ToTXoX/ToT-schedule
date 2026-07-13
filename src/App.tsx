@@ -118,11 +118,10 @@ export default function App() {
   // System time updater
   useEffect(() => {
     const timer = setInterval(() => {
-      setSystemTime(prev => {
-        const next = new Date(prev);
-        next.setSeconds(next.getSeconds() + 1);
-        return next;
-      });
+      const now = new Date();
+      const actualToday = getRealTodayStr();
+      setSystemTime(now);
+      setCurrentDateStr(previous => previous === actualToday ? previous : actualToday);
     }, 1000);
     return () => clearInterval(timer);
   }, []);
