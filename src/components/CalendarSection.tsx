@@ -32,6 +32,19 @@ interface CalendarSectionProps {
 
 type ViewMode = 'three-day' | 'week' | 'month';
 
+interface TaskDragPayload {
+  taskId: string;
+  sourceDate: string;
+  sourceIndex: number;
+}
+
+type TaskDropPosition = 'before' | 'after';
+
+interface TaskDropIndicator {
+  taskId: string;
+  position: TaskDropPosition;
+}
+
 const getRealTodayStr = (): string => {
   const d = new Date();
   const year = d.getFullYear();
@@ -232,6 +245,9 @@ export default function CalendarSection({
 
   // Drag-resize state for multi-day tasks
   const [resizingTask, setResizingTask] = useState<{ id: string; edge: 'start' | 'end'; deltaDays: number } | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [taskDropIndicator, setTaskDropIndicator] = useState<TaskDropIndicator | null>(null);
+  const draggedTaskRef = useRef<TaskDragPayload | null>(null);
 
   const todayStr = getRealTodayStr();
 
@@ -579,6 +595,7 @@ export default function CalendarSection({
       }
 
       if (startA !== startB) return startA.localeCompare(startB);
+      if (a.order !== b.order) return a.order - b.order;
       const durA = new Date(endA).getTime() - new Date(startA).getTime();
       const durB = new Date(endB).getTime() - new Date(startB).getTime();
       return durB - durA;
@@ -646,20 +663,108 @@ export default function CalendarSection({
 
   // --- HTML5 Drag & Drop scheduling for Tasks ---
   const handleTaskDragStart = (e: React.DragEvent, taskId: string, srcDate: string, index: number) => {
-    e.dataTransfer.setData('taskId', taskId);
-    e.dataTransfer.setData('sourceDate', srcDate);
-    e.dataTransfer.setData('sourceIndex', String(index));
+    const payload: TaskDragPayload = { taskId, sourceDate: srcDate, sourceIndex: index };
+    draggedTaskRef.current = payload;
+    setDraggedTaskId(taskId);
+    setTaskDropIndicator(null);
+
+    const serializedPayload = JSON.stringify(payload);
+    e.dataTransfer.setData('application/x-tot-task', serializedPayload);
+    e.dataTransfer.setData('text/plain', serializedPayload);
     e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleTaskDragEnd = () => {
+    draggedTaskRef.current = null;
+    setDraggedTaskId(null);
+    setTaskDropIndicator(null);
+  };
+
+  const getTaskDragPayload = (e: React.DragEvent): TaskDragPayload | null => {
+    const serializedPayload =
+      e.dataTransfer.getData('application/x-tot-task') ||
+      e.dataTransfer.getData('text/plain');
+
+    if (serializedPayload) {
+      try {
+        const payload = JSON.parse(serializedPayload) as Partial<TaskDragPayload>;
+        if (payload.taskId) {
+          return {
+            taskId: payload.taskId,
+            sourceDate: payload.sourceDate || '',
+            sourceIndex: Number.isFinite(payload.sourceIndex) ? Number(payload.sourceIndex) : 0,
+          };
+        }
+      } catch {
+        // Accept legacy/plain task IDs from older drag payloads.
+        if (tasks.some(task => task.id === serializedPayload)) {
+          return { taskId: serializedPayload, sourceDate: '', sourceIndex: 0 };
+        }
+      }
+    }
+
+    return draggedTaskRef.current;
   };
 
   const handleTaskDragOver = (e: React.DragEvent) => {
     e.preventDefault(); // Required to allow drop
+    e.dataTransfer.dropEffect = 'move';
+    setTaskDropIndicator(null);
   };
+
+  const getPointerDropPosition = (e: React.DragEvent): TaskDropPosition => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  };
+
+  const handleTaskItemDragOver = (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+
+    if (draggedTaskRef.current?.taskId === targetTaskId) {
+      setTaskDropIndicator(null);
+      return;
+    }
+
+    const nextIndicator = { taskId: targetTaskId, position: getPointerDropPosition(e) };
+    setTaskDropIndicator(previous =>
+      previous?.taskId === nextIndicator.taskId && previous.position === nextIndicator.position
+        ? previous
+        : nextIndicator
+    );
+  };
+
+  const getInsertionOrder = (
+    targetTask: Task,
+    position: TaskDropPosition,
+    candidateTasks: Task[],
+    draggedId: string
+  ) => {
+    const orderedTasks = candidateTasks
+      .filter(task => task.id !== draggedId)
+      .sort((a, b) => a.order - b.order);
+    const targetIndex = orderedTasks.findIndex(task => task.id === targetTask.id);
+    if (targetIndex === -1) return targetTask.order;
+
+    if (position === 'before') {
+      const previousTask = orderedTasks[targetIndex - 1];
+      return previousTask ? (previousTask.order + targetTask.order) / 2 : targetTask.order - 1;
+    }
+
+    const nextTask = orderedTasks[targetIndex + 1];
+    return nextTask ? (targetTask.order + nextTask.order) / 2 : targetTask.order + 1;
+  };
+
+  const getTaskDropPosition = (taskId: string) =>
+    taskDropIndicator?.taskId === taskId ? taskDropIndicator.position : undefined;
 
   const handleTaskDropOnDate = (e: React.DragEvent, dateStr: string) => {
     e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    if (taskId) {
+    setTaskDropIndicator(null);
+    const payload = getTaskDragPayload(e);
+    if (payload) {
+      const { taskId } = payload;
       const task = tasks.find(t => t.id === taskId);
       if (task) {
         const updates: Partial<Task> = { 
@@ -689,24 +794,23 @@ export default function CalendarSection({
   const handleTaskDropOnTaskItem = (e: React.DragEvent, targetTask: Task, targetDateStr: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const taskId = e.dataTransfer.getData('taskId');
-    const sourceDate = e.dataTransfer.getData('sourceDate');
-    const sourceIndexStr = e.dataTransfer.getData('sourceIndex');
-    
-    if (!taskId) return;
-    
-    if (sourceDate === targetDateStr) {
-      // Reorder on the same day (swap orders)
-      const tempOrder = targetTask.order;
-      onUpdateTask(taskId, { order: tempOrder });
-      onUpdateTask(targetTask.id, { order: tempOrder + 0.5 });
+    const position = getPointerDropPosition(e);
+    setTaskDropIndicator(null);
+    const payload = getTaskDragPayload(e);
+    if (!payload || payload.taskId === targetTask.id) return;
+    const { taskId } = payload;
+    const targetDateTasks = tasks.filter(task => task.date === targetDateStr);
+    const insertionOrder = getInsertionOrder(targetTask, position, targetDateTasks, taskId);
+
+    if (payload.sourceDate === targetDateStr) {
+      onUpdateTask(taskId, { order: insertionOrder });
     } else {
-      // Move to a new day before target
+      // Move to a new day at the indicated position.
       const task = tasks.find(t => t.id === taskId);
       if (task) {
         const updates: Partial<Task> = { 
           date: targetDateStr, 
-          order: targetTask.order - 0.5,
+          order: insertionOrder,
           scheduledWeek: undefined,
           scheduledMonth: undefined
         };
@@ -731,8 +835,9 @@ export default function CalendarSection({
 
   const handleTaskRemoveSchedule = (e: React.DragEvent) => {
     e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    if (taskId) {
+    const payload = getTaskDragPayload(e);
+    if (payload) {
+      const { taskId } = payload;
       onUpdateTask(taskId, { 
         date: undefined, 
         endDate: undefined, 
@@ -921,8 +1026,11 @@ export default function CalendarSection({
   const handleUnscheduledTaskDropOnTask = (e: React.DragEvent, targetTask: Task, view: 'week' | 'month') => {
     e.preventDefault();
     e.stopPropagation();
-    const taskId = e.dataTransfer.getData('taskId');
-    if (!taskId || taskId === targetTask.id) return;
+    const position = getPointerDropPosition(e);
+    setTaskDropIndicator(null);
+    const payload = getTaskDragPayload(e);
+    if (!payload || payload.taskId === targetTask.id) return;
+    const { taskId } = payload;
 
     const draggedTask = tasks.find(t => t.id === taskId);
     if (!draggedTask) return;
@@ -931,15 +1039,19 @@ export default function CalendarSection({
     const isInSameUnscheduledList = 
       (view === 'week' && !draggedTask.date && draggedTask.scheduledWeek === startOfWeekStr) ||
       (view === 'month' && !draggedTask.date && draggedTask.scheduledMonth === curYearMonth);
+    const unscheduledTasks = view === 'week'
+      ? thisWeekTasks.filter(task => !task.date)
+      : thisMonthTasks.filter(task => !task.date);
+    const insertionOrder = getInsertionOrder(targetTask, position, unscheduledTasks, taskId);
 
     if (isInSameUnscheduledList) {
-      onUpdateTask(taskId, { order: targetTask.order - 0.5 });
+      onUpdateTask(taskId, { order: insertionOrder });
     } else {
       const updates: Partial<Task> = {
         date: undefined,
         endDate: undefined,
         time: undefined,
-        order: targetTask.order - 0.5
+        order: insertionOrder
       };
 
       if (view === 'week') {
@@ -956,8 +1068,10 @@ export default function CalendarSection({
 
   const handleUnscheduledContainerDrop = (e: React.DragEvent, view: 'week' | 'month') => {
     e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    if (!taskId) return;
+    setTaskDropIndicator(null);
+    const payload = getTaskDragPayload(e);
+    if (!payload) return;
+    const { taskId } = payload;
 
     const updates: Partial<Task> = {};
     const curYearMonth = startOfMonthStr.substring(0, 7);
@@ -1540,7 +1654,11 @@ export default function CalendarSection({
                               <div
                                 key={task.id}
                                 draggable
+                                data-task-drop-position={getTaskDropPosition(task.id)}
                                 onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
+                                onDragEnd={handleTaskDragEnd}
+                                onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
+                                onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
                                 onClick={() => {
                                   if (justResizedRef.current) return;
                                   openEditTaskModal(task);
@@ -1552,7 +1670,7 @@ export default function CalendarSection({
                                 }}
                                 className={`h-7 rounded-md text-xs px-2 flex items-center justify-between cursor-pointer group transition-all select-none hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative z-20 mx-1 ${
                                   isCompleted ? 'opacity-70' : ''
-                                }`}
+                                } ${draggedTaskId === task.id ? 'opacity-40' : ''}`}
                               >
                                 {/* Left drag-resize handle */}
                                 <div 
@@ -1633,8 +1751,10 @@ export default function CalendarSection({
                               <div
                                 key={task.id}
                                 draggable
+                                data-task-drop-position={getTaskDropPosition(task.id)}
                                 onDragStart={(e) => handleTaskDragStart(e, task.id, day.dateStr, index)}
-                                onDragOver={handleTaskDragOver}
+                                onDragEnd={handleTaskDragEnd}
+                                onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                                 onDrop={(e) => handleTaskDropOnTaskItem(e, task, day.dateStr)}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1792,8 +1912,10 @@ export default function CalendarSection({
                             <div
                               key={task.id}
                               draggable
+                              data-task-drop-position={getTaskDropPosition(task.id)}
                               onDragStart={(e) => handleTaskDragStart(e, task.id, day.dateStr, index)}
-                              onDragOver={handleTaskDragOver}
+                              onDragEnd={handleTaskDragEnd}
+                              onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                               onDrop={(e) => handleTaskDropOnTaskItem(e, task, day.dateStr)}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1854,7 +1976,7 @@ export default function CalendarSection({
                     >
                       <div className="space-y-1.5 w-full">
                         {rows.map((rowTasks, rIdx) => (
-                          <div key={rIdx} className="grid grid-cols-7 gap-2 h-7.5 relative w-full pointer-events-auto">
+                          <div key={rIdx} className="grid grid-cols-7 gap-2 h-7.5 relative w-full pointer-events-none">
                             {rowTasks.map(task => {
                               const isResizingThis = resizingTask && resizingTask.id === task.id;
                               let renderStartDate = task.date || '';
@@ -1888,7 +2010,11 @@ export default function CalendarSection({
                                 <div
                                   key={task.id}
                                   draggable
+                                  data-task-drop-position={getTaskDropPosition(task.id)}
                                   onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
+                                  onDragEnd={handleTaskDragEnd}
+                                  onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
+                                  onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
                                   onClick={() => {
                                     if (justResizedRef.current) return;
                                     openEditTaskModal(task);
@@ -1898,9 +2024,9 @@ export default function CalendarSection({
                                     gridColumnStart: startIndex + 1,
                                     gridColumnEnd: endIndex + 2,
                                   }}
-                                  className={`h-7 rounded-md text-[10px] px-2 flex items-center justify-between cursor-pointer group transition-all select-none hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative z-20 mx-0.5 ${
+                                  className={`h-7 rounded-md text-[10px] px-2 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative z-20 mx-0.5 ${
                                     isCompleted ? 'opacity-70' : ''
-                                  }`}
+                                  } ${draggedTaskId === task.id ? 'opacity-40' : ''}`}
                                 >
                                   {/* Left drag-resize handle */}
                                   <div 
@@ -2158,8 +2284,10 @@ export default function CalendarSection({
                                     <div
                                       key={task.id}
                                       draggable
+                                      data-task-drop-position={getTaskDropPosition(task.id)}
                                       onDragStart={(e) => handleTaskDragStart(e, task.id, day.dateStr, index)}
-                                      onDragOver={handleTaskDragOver}
+                                      onDragEnd={handleTaskDragEnd}
+                                      onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                                       onDrop={(e) => handleTaskDropOnTaskItem(e, task, day.dateStr)}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2249,7 +2377,11 @@ export default function CalendarSection({
                                     <div
                                       key={task.id}
                                       draggable
+                                      data-task-drop-position={getTaskDropPosition(task.id)}
                                       onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
+                                      onDragEnd={handleTaskDragEnd}
+                                      onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
+                                      onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
                                       onClick={() => {
                                         if (justResizedRef.current) return;
                                         openEditTaskModal(task);
@@ -2261,7 +2393,7 @@ export default function CalendarSection({
                                       }}
                                       className={`h-5 rounded-md text-[8px] px-1.5 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative mx-0.5 z-20 ${
                                         isCompleted ? 'opacity-70' : ''
-                                      }`}
+                                      } ${draggedTaskId === task.id ? 'opacity-40' : ''}`}
                                     >
                                       {/* Left drag-resize handle */}
                                       <div 
@@ -2601,8 +2733,10 @@ export default function CalendarSection({
                         <div 
                           key={task.id} 
                           draggable
-                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
-                          onDragOver={handleTaskDragOver}
+                          data-task-drop-position={getTaskDropPosition(task.id)}
+                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0)}
+                          onDragEnd={handleTaskDragEnd}
+                          onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'week')}
                           onClick={() => openEditTaskModal(task)}
                           className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
@@ -2675,13 +2809,20 @@ export default function CalendarSection({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {weekScheduled.sort((a,b) => (a.date||'').localeCompare(b.date||'')).map(task => {
+                      {weekScheduled.sort((a, b) => {
+                        const dateComparison = (a.date || '').localeCompare(b.date || '');
+                        return dateComparison || a.order - b.order;
+                      }).map(task => {
                         const taskDate = task.date || todayStr;
                         return (
                           <div 
                             key={task.id} 
                             draggable
+                            data-task-drop-position={getTaskDropPosition(task.id)}
                             onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0)}
+                            onDragEnd={handleTaskDragEnd}
+                            onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
+                            onDrop={(e) => handleTaskDropOnTaskItem(e, task, taskDate)}
                             onClick={() => openEditTaskModal(task)}
                             className="p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition"
                           >
@@ -2796,8 +2937,10 @@ export default function CalendarSection({
                         <div 
                           key={task.id} 
                           draggable
-                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
-                          onDragOver={handleTaskDragOver}
+                          data-task-drop-position={getTaskDropPosition(task.id)}
+                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0)}
+                          onDragEnd={handleTaskDragEnd}
+                          onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'month')}
                           onClick={() => openEditTaskModal(task)}
                           className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
@@ -2871,13 +3014,20 @@ export default function CalendarSection({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {monthScheduled.sort((a,b) => (a.date||'').localeCompare(b.date||'')).map(task => {
+                      {monthScheduled.sort((a, b) => {
+                        const dateComparison = (a.date || '').localeCompare(b.date || '');
+                        return dateComparison || a.order - b.order;
+                      }).map(task => {
                         const taskDate = task.date || todayStr;
                         return (
                           <div 
                             key={task.id} 
                             draggable
+                            data-task-drop-position={getTaskDropPosition(task.id)}
                             onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0)}
+                            onDragEnd={handleTaskDragEnd}
+                            onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
+                            onDrop={(e) => handleTaskDropOnTaskItem(e, task, taskDate)}
                             onClick={() => openEditTaskModal(task)}
                             className="p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition animate-fade-in"
                           >

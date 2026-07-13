@@ -268,7 +268,7 @@ export default function App() {
   };
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, ...updates } : t));
+    setTasks(previous => previous.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
   const handleDeleteTask = (id: string) => {

@@ -679,3 +679,31 @@ select:focus-visible {
   background: var(--app-accent);
   font-weight: 800;
 }
+
+/* Task drag insertion feedback */
+[data-task-drop-position] {
+  position: relative;
+  z-index: 40;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16), 0 5px 14px rgba(59, 130, 246, 0.12);
+}
+
+[data-task-drop-position]::before {
+  content: '';
+  position: absolute;
+  z-index: 60;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.94), 0 2px 7px rgba(37, 99, 235, 0.4);
+  pointer-events: none;
+}
+
+[data-task-drop-position='before']::before {
+  top: -6px;
+}
+
+[data-task-drop-position='after']::before {
+  bottom: -6px;
+}
