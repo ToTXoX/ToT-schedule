@@ -6,10 +6,11 @@ import {
 import { loadPlannerState, savePlannerState } from './storage';
 import TaskLibrary from './components/TaskLibrary';
 import CalendarSection from './components/CalendarSection';
+import UpdateChecker from './components/UpdateChecker';
 import { 
   Calendar as CalendarIcon, ListTodo, Clock, Bell, Settings, Check,
   HelpCircle, Eye, RefreshCw, Layers, ShieldAlert, ArrowRight, Heart
-} from 'lucide-react';
+} from './icons';
 
 // Preset Category Defaults
 const DEFAULT_CATEGORIES: Category[] = [
@@ -439,6 +440,7 @@ export default function App() {
 
             {/* Right Info: Clock, Notification Trigger */}
             <div className="flex items-center gap-2 sm:gap-4 relative text-xs text-neutral-600 flex-shrink-0">
+              <UpdateChecker />
               
               {/* Notifications Indicator */}
               <button
@@ -602,7 +604,7 @@ export default function App() {
         </div>
         <div className="flex items-center space-x-1.5 mt-2 sm:mt-0 text-neutral-400">
           <span>用</span>
-          <Heart className="w-3.5 h-3.5 text-rose-500 inline fill-rose-500" />
+          <Heart className="w-3.5 h-3.5 text-rose-500 inline" />
           <span>精心规划每一天</span>
         </div>
       </footer>

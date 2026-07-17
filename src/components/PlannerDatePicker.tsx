@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDatePicker from 'react-datepicker';
 import { zhCN } from 'date-fns/locale';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays } from '../icons';
 
 type PickerMode = 'date' | 'month';
 

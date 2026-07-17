@@ -98,6 +98,8 @@ pub fn run() {
     let close_requested = Arc::clone(&keep_alive_after_main_window_close);
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(move |window, event| {
             #[cfg(target_os = "macos")]
             if window.label() == "main" {

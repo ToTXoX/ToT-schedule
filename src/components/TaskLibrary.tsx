@@ -5,7 +5,7 @@ import {
 import { 
   Folder, Plus, Trash2, Edit2, ChevronDown, ChevronRight, CheckSquare, Square,
   GripVertical, Calendar, Clock, AlertTriangle, ArrowUp, ArrowDown, Settings, Check, X, Trash, ArrowUpDown
-} from 'lucide-react';
+} from '../icons';
 import PlannerDatePicker from './PlannerDatePicker';
 
 const formatDate = (d: Date): string => {
@@ -191,6 +191,7 @@ export default function TaskLibrary({
   // Drag and Drop Categories State
   const [draggedCatIndex, setDraggedCatIndex] = useState<number | null>(null);
   const [draggedTaskIndex, setDraggedTaskIndex] = useState<number | null>(null);
+  const [taskDropIndicator, setTaskDropIndicator] = useState<{ index: number; position: 'before' | 'after' } | null>(null);
   const [draggedSubIndex, setDraggedSubIndex] = useState<number | null>(null);
 
   // Inline task title editing states
@@ -554,6 +555,15 @@ export default function TaskLibrary({
 
   const handleTaskDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    if (draggedTaskIndex === null || draggedTaskIndex === index) {
+      setTaskDropIndicator(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+    setTaskDropIndicator(previous =>
+      previous?.index === index && previous.position === position ? previous : { index, position }
+    );
   };
 
   const handleTaskDrop = (e: React.DragEvent, index: number) => {
@@ -563,7 +573,10 @@ export default function TaskLibrary({
     // Create copy of all tasks in the current category/view, update orders
     const categorySpecificTasks = [...filteredTasks];
     const [removed] = categorySpecificTasks.splice(draggedTaskIndex, 1);
-    categorySpecificTasks.splice(index, 0, removed);
+    const position = taskDropIndicator?.index === index ? taskDropIndicator.position : 'before';
+    let insertionIndex = index + (position === 'after' ? 1 : 0);
+    if (draggedTaskIndex < insertionIndex) insertionIndex -= 1;
+    categorySpecificTasks.splice(insertionIndex, 0, removed);
     
     // Distribute original orders to newly ordered tasks
     const originalOrders = filteredTasks.map(t => t.order).sort((a, b) => a - b);
@@ -584,6 +597,7 @@ export default function TaskLibrary({
     
     onReorderTasks(updatedTasks);
     setDraggedTaskIndex(null);
+    setTaskDropIndicator(null);
   };
 
   // Drag & Drop handlers for Subtasks
@@ -982,7 +996,10 @@ export default function TaskLibrary({
                     }
                     handleTaskDragStart(e, idx);
                   }}
-                  onDragEnd={() => setDraggedTaskIndex(null)}
+                  onDragEnd={() => {
+                    setDraggedTaskIndex(null);
+                    setTaskDropIndicator(null);
+                  }}
                   onDragOver={(e) => {
                     if (isExpanded || isSortedByTime) return;
                     handleTaskDragOver(e, idx);
@@ -991,7 +1008,8 @@ export default function TaskLibrary({
                     if (isExpanded || isSortedByTime) return;
                     handleTaskDrop(e, idx);
                   }}
-                  className={`task-card border rounded-xl overflow-hidden transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 hover:border-neutral-300'} ${draggedTaskIndex === idx ? 'opacity-30 border-neutral-200 bg-neutral-50/50' : ''}`}
+                  data-task-library-drop-position={taskDropIndicator?.index === idx ? taskDropIndicator.position : undefined}
+                  className={`task-card border rounded-xl overflow-visible transition ${task.completed ? 'bg-neutral-50/50 border-neutral-100 opacity-75' : 'bg-white border-neutral-200 hover:border-neutral-300'} ${draggedTaskIndex === idx ? 'opacity-30 border-neutral-200 bg-neutral-50/50' : ''}`}
                 >
                   {/* Task Header */}
                   <div 
@@ -1239,6 +1257,16 @@ export default function TaskLibrary({
                               子任务: {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
                             </span>
                           )}
+                          <span
+                            className="inline-flex items-center max-w-[120px] px-1.5 py-0.5 rounded border bg-white/80 truncate"
+                            style={{
+                              color: taskCat ? getCatColorHex(taskCat.color, taskCat.colorHex) : '#737373',
+                              borderColor: taskCat ? `${getCatColorHex(taskCat.color, taskCat.colorHex)}35` : '#e5e5e5',
+                            }}
+                            title={taskCat?.name || '未分类'}
+                          >
+                            {taskCat?.name || '未分类'}
+                          </span>
                         </div>
                       </div>
                     </div>

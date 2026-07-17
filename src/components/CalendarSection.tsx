@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit2, GripVertical, Smile, Frown, Flame, Heart, Meh,
   AlertTriangle, ArrowUp, ArrowDown, MoveRight, X, Trash, Clock, Bell, Repeat,
   Check, Eraser
-} from 'lucide-react';
+} from '../icons';
 import PlannerDatePicker from './PlannerDatePicker';
 
 interface CalendarSectionProps {
@@ -146,12 +146,20 @@ export default function CalendarSection({
   // Sidebars Visibility Toggles (Persistent via state)
   const [showNotesSection, setShowNotesSection] = useState(true);
   const [showMoodSection, setShowMoodSection] = useState(true);
-  const [moodVisibilityByView, setMoodVisibilityByView] = useState<Record<ViewMode, boolean>>({
-    'three-day': true,
-    week: true,
-    month: true,
+  const [moodVisibilityByView, setMoodVisibilityByView] = useState<Record<ViewMode, boolean>>(() => {
+    const defaults: Record<ViewMode, boolean> = { 'three-day': true, week: true, month: true };
+    try {
+      const saved = localStorage.getItem('planner_mood_visibility_by_view');
+      return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    } catch {
+      return defaults;
+    }
   });
   const showMoodEmojis = moodVisibilityByView[viewMode];
+
+  useEffect(() => {
+    localStorage.setItem('planner_mood_visibility_by_view', JSON.stringify(moodVisibilityByView));
+  }, [moodVisibilityByView]);
 
   const toggleMoodVisibility = () => {
     setMoodVisibilityByView(previous => ({
@@ -212,6 +220,22 @@ export default function CalendarSection({
 
   // Active click-to-pick mood date state (Fixing monthly mood selection)
   const [activeMoodPickerDate, setActiveMoodPickerDate] = useState<string | null>(null);
+  const [moodPickerPosition, setMoodPickerPosition] = useState<{ top: number; left: number } | null>(null);
+
+  const toggleMonthMoodPicker = (dateStr: string, button: HTMLButtonElement) => {
+    if (activeMoodPickerDate === dateStr) {
+      setActiveMoodPickerDate(null);
+      setMoodPickerPosition(null);
+      return;
+    }
+
+    const rect = button.getBoundingClientRect();
+    const popupWidth = 224;
+    const left = Math.max(8, Math.min(rect.right - popupWidth, window.innerWidth - popupWidth - 8));
+    const top = rect.bottom + 58 <= window.innerHeight ? rect.bottom + 6 : rect.top - 58;
+    setMoodPickerPosition({ top, left });
+    setActiveMoodPickerDate(dateStr);
+  };
 
   // Editing Task details modal state (Fixing click to edit in calendar)
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -1450,7 +1474,7 @@ export default function CalendarSection({
               className="flex items-center gap-1.5 p-1 cursor-pointer transition-opacity hover:opacity-75"
               title={showMoodEmojis ? '隐藏日期卡心情' : '显示日期卡心情'}
             >
-              <Smile className={`w-3.5 h-3.5 ${showMoodEmojis ? 'text-amber-500 fill-amber-100' : 'text-neutral-400'}`} />
+              <Smile className={`w-3.5 h-3.5 ${showMoodEmojis ? 'text-amber-500' : 'text-neutral-400'}`} />
               <span
                 aria-hidden="true"
                 className={`relative inline-flex h-4 w-7 flex-shrink-0 rounded-full transition-colors duration-200 ${showMoodEmojis ? 'bg-amber-400' : 'bg-neutral-300'}`}
@@ -2168,7 +2192,7 @@ export default function CalendarSection({
 
                             let numClass = "";
                             if (isToday) {
-                              numClass = "today-star-date text-xs font-extrabold text-neutral-700";
+                              numClass = "month-today-date text-xs font-extrabold text-neutral-700";
                             } else if (!isCurrentMonth) {
                               numClass = "text-neutral-300/80 font-normal";
                             } else if (isPast) {
@@ -2213,7 +2237,7 @@ export default function CalendarSection({
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setActiveMoodPickerDate(isPickerOpen ? null : day.dateStr);
+                                            toggleMonthMoodPicker(day.dateStr, e.currentTarget);
                                           }}
                                           className="text-xs hover:scale-115 transition cursor-pointer"
                                           title={`当日心情: ${dayMood.emoji}. 点击重新设置`}
@@ -2225,7 +2249,7 @@ export default function CalendarSection({
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setActiveMoodPickerDate(isPickerOpen ? null : day.dateStr);
+                                            toggleMonthMoodPicker(day.dateStr, e.currentTarget);
                                           }}
                                           className="opacity-0 group-hover/column:opacity-100 text-xs text-neutral-300 hover:text-neutral-600 focus:outline-none transition cursor-pointer"
                                           title="点击设置当天心情"
@@ -2234,8 +2258,11 @@ export default function CalendarSection({
                                         </button>
                                       )}
 
-                                      {isPickerOpen && (
-                                        <div className="absolute right-0 top-6 bg-white shadow-2xl border border-neutral-200 p-2 rounded-2xl flex space-x-2 z-50 items-center animate-fade-in whitespace-nowrap">
+                                      {isPickerOpen && moodPickerPosition && (
+                                        <div
+                                          className="fixed bg-white shadow-2xl border border-neutral-200 p-2 rounded-xl flex space-x-2 z-[100] items-center animate-fade-in whitespace-nowrap"
+                                          style={moodPickerPosition}
+                                        >
                                           {MOOD_OPTIONS.map(opt => (
                                             <button
                                               key={opt.emoji}
@@ -2245,6 +2272,7 @@ export default function CalendarSection({
                                                 const shouldClear = dayMood.emoji === opt.emoji;
                                                 onUpdateMood(day.dateStr, shouldClear ? '' : opt.emoji, shouldClear ? '' : dayMood.text);
                                                 setActiveMoodPickerDate(null);
+                                                setMoodPickerPosition(null);
                                               }}
                                               className="text-base hover:scale-130 transition cursor-pointer"
                                               title={opt.label}
@@ -2259,6 +2287,7 @@ export default function CalendarSection({
                                                 e.stopPropagation();
                                                 onUpdateMood(day.dateStr, '', '');
                                                 setActiveMoodPickerDate(null);
+                                                setMoodPickerPosition(null);
                                               }}
                                               className="text-[10px] text-red-500 hover:underline px-1 bg-red-50 rounded"
                                             >
@@ -2270,6 +2299,7 @@ export default function CalendarSection({
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               setActiveMoodPickerDate(null);
+                                              setMoodPickerPosition(null);
                                             }}
                                             className="text-[10px] text-neutral-400 hover:text-neutral-700 pl-1"
                                           >
@@ -2856,10 +2886,15 @@ export default function CalendarSection({
                               </span>
                             </div>
 
-                            <div className="flex items-center justify-between mt-1.5">
-                              <span className="text-[9px] text-neutral-400 font-mono">
-                                {task.time || '全天日程'}
-                              </span>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[9px] text-neutral-400 font-mono flex-shrink-0">
+                                  {task.time || '全天日程'}
+                                </span>
+                                <span className="text-[8px] bg-white text-neutral-500 border border-neutral-200 px-1.5 py-0.5 rounded font-medium truncate">
+                                  {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
+                                </span>
+                              </div>
                               
                               <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
                                 task.urgency === 'high' ? 'bg-red-100 text-red-700' :
@@ -3063,10 +3098,15 @@ export default function CalendarSection({
                               </span>
                             </div>
 
-                            <div className="flex items-center justify-between mt-1.5">
-                              <span className="text-[9px] text-neutral-400">
-                                {task.time || '全天日程'}
-                              </span>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[9px] text-neutral-400 flex-shrink-0">
+                                  {task.time || '全天日程'}
+                                </span>
+                                <span className="text-[8px] bg-white text-neutral-500 border border-neutral-200 px-1.5 py-0.5 rounded font-medium truncate">
+                                  {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
+                                </span>
+                              </div>
                               
                               <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
                                 task.urgency === 'high' ? 'bg-red-100 text-red-700' :

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ToT 日程",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.tot.schedule",
   "build": {
     "beforeDevCommand": "npm run dev:web",
@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "Productivity",
     "shortDescription": "轻量本地日程与任务管理应用",
     "icon": [
@@ -43,6 +44,14 @@
     "macOS": {
       "minimumSystemVersion": "10.15",
       "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFNDFBMTA2RjkzQzZBRkYKUldUL2FqejVCcUZCM2dGaEJkaTkzZ1dZK1FrWjlpNEJGdzh2bmFOc2xGOC9LRkZjT1Z2Umt3UEQK",
+      "endpoints": [
+        "https://github.com/ToTXoX/ToT-schedule/releases/latest/download/latest.json"
+      ]
     }
   }
 }

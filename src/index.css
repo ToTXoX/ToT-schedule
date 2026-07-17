@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -254,6 +253,24 @@ select:focus-visible {
 }
 
 .today-star-date > span {
+  color: #fff;
+}
+
+.month-today-date {
+  display: inline-flex !important;
+  width: 20px !important;
+  min-width: 20px;
+  height: 20px !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 1 !important;
+  border-radius: 999px;
+  color: #fff !important;
+  background: #4169e1 !important;
+  box-shadow: 0 1px 4px rgba(65, 105, 225, 0.24);
+}
+
+.month-today-date > span {
   color: #fff;
 }
 
@@ -681,22 +698,24 @@ select:focus-visible {
 }
 
 /* Task drag insertion feedback */
-[data-task-drop-position] {
+[data-task-drop-position],
+[data-task-library-drop-position] {
   position: relative;
   z-index: 40;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16), 0 5px 14px rgba(59, 130, 246, 0.12);
 }
 
-[data-task-drop-position]::before {
+[data-task-drop-position]::before,
+[data-task-library-drop-position]::before {
   content: '';
   position: absolute;
   z-index: 60;
   left: 4px;
   right: 4px;
-  height: 3px;
+  height: 1px;
   border-radius: 999px;
   background: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.94), 0 2px 7px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.94), 0 1px 4px rgba(37, 99, 235, 0.32);
   pointer-events: none;
 }
 
@@ -706,4 +725,12 @@ select:focus-visible {
 
 [data-task-drop-position='after']::before {
   bottom: -6px;
+}
+
+[data-task-library-drop-position='before']::before {
+  top: -5px;
+}
+
+[data-task-library-drop-position='after']::before {
+  bottom: -5px;
 }
