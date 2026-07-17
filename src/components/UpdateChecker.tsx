@@ -99,7 +99,7 @@ export default function UpdateChecker() {
         <div className="absolute right-0 top-11 w-80 bg-white/95 backdrop-blur-md border border-neutral-200 rounded-2xl p-4 shadow-xl z-60 text-neutral-800 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
             <span className="font-extrabold text-xs">应用更新</span>
-            <button type="button" onClick={() => setOpen(false)} className="text-[10px] text-neutral-400 hover:text-neutral-700 cursor-pointer">
+            <button type="button" onClick={() => setOpen(false)} className="text-[11px] text-neutral-400 hover:text-neutral-700 cursor-pointer">
               关闭
             </button>
           </div>
@@ -118,7 +118,7 @@ export default function UpdateChecker() {
               <div>
                 <p className="text-xs font-bold text-neutral-800">发现新版本 v{availableUpdate.version}</p>
                 {availableUpdate.body && (
-                  <p className="mt-1.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-[10px] leading-relaxed text-neutral-500">
+                  <p className="mt-1.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-500">
                     {availableUpdate.body}
                   </p>
                 )}
@@ -147,8 +147,8 @@ export default function UpdateChecker() {
           {status === 'error' && (
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-red-600">检查或安装更新失败</p>
-              <p className="break-words text-[10px] text-neutral-500">{message}</p>
-              <button type="button" onClick={() => void checkForUpdates(false)} className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer">
+              <p className="break-words text-[11px] text-neutral-500">{message}</p>
+              <button type="button" onClick={() => void checkForUpdates(false)} className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">
                 重试
               </button>
             </div>

@@ -17,6 +17,11 @@
   --app-accent: #4169e1;
   --app-accent-strong: #3158ce;
   --app-accent-soft: #eef3ff;
+  --font-size-caption: 11px;
+  --font-size-label: 12px;
+  --font-size-meta: 12px;
+  --font-size-body: 12px;
+  --font-size-title: 15px;
   --app-shadow: 0 22px 55px rgba(24, 32, 48, 0.09), 0 3px 12px rgba(24, 32, 48, 0.04);
   --panel-shadow: 0 1px 2px rgba(25, 32, 48, 0.03), 0 8px 28px rgba(25, 32, 48, 0.035);
 }
@@ -45,6 +50,116 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* Application type scale: controls/content 12, titles 15. */
+.app-window {
+  font-size: var(--font-size-meta);
+  line-height: 1.45;
+}
+
+.app-window .text-xs {
+  font-size: var(--font-size-meta);
+}
+
+.app-window .text-\[11px\] {
+  font-size: var(--font-size-caption);
+  line-height: 1.35;
+}
+
+.app-window button,
+.app-window [role="button"] {
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
+
+.app-window button *:not(svg),
+.app-window [role="button"] *:not(svg) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.app-window input,
+.app-window textarea,
+.app-window .planner-select {
+  font-size: var(--font-size-meta);
+}
+
+.app-window .text-sm,
+.app-window h2,
+.app-window h3 {
+  font-size: var(--font-size-title);
+  line-height: 1.3;
+}
+
+/* Emoji are visual content, so they intentionally do not use button-label sizing. */
+.app-window button.text-base {
+  font-size: 14px;
+}
+
+.app-window button.text-2xl {
+  font-size: 24px;
+}
+
+.app-window button .mood-emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.month-mood-picker {
+  z-index: 4000;
+  width: 268px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.month-mood-picker__emoji {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.month-mood-picker__emoji:hover {
+  background: #f3f5f9;
+  transform: translateY(-1px) scale(1.08);
+}
+
+.month-mood-picker__emoji--selected {
+  background: #eef3ff;
+  box-shadow: inset 0 0 0 1.5px #6d8ce8, 0 2px 7px rgba(65, 105, 225, 0.16);
+}
+
+.month-mood-picker__action {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  align-items: center;
+  justify-content: center;
+  color: #8b94a3;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: color 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+.month-mood-picker__action:hover {
+  color: #343a45;
+  background: transparent;
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.month-mood-picker__action--clear:hover {
+  color: #dc2626;
+  background: transparent;
 }
 
 button:focus-visible,
@@ -124,6 +239,21 @@ select:focus-visible {
   color: #fff;
 }
 
+.app-tabs {
+  padding: 3px;
+}
+
+.app-tab {
+  padding: 6px 11px !important;
+  gap: 5px;
+  font-size: var(--font-size-label) !important;
+}
+
+.app-tab svg {
+  width: 14px;
+  height: 14px;
+}
+
 .header-icon-button:hover {
   color: #303640;
   background: #f2f4f7;
@@ -132,6 +262,68 @@ select:focus-visible {
 .app-content {
   background: var(--app-surface-subtle);
 }
+
+.planner-modal-overlay {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: clamp(10px, 2vh, 20px);
+}
+
+.planner-modal-panel {
+  max-height: calc(100dvh - clamp(20px, 4vh, 40px));
+  margin: 0 auto auto;
+  overflow-y: auto;
+}
+
+.planner-select {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  color: #343a45;
+  border: 1px solid #dfe3e9;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 32, 48, 0.04);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planner-select:hover { border-color: #cbd2dc; }
+.planner-select:focus-visible { border-color: #6d8ce8; outline: 3px solid rgba(65, 105, 225, 0.12); }
+
+.planner-select-menu {
+  position: fixed;
+  z-index: 2000;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #dfe3e9;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(25, 32, 48, 0.18);
+}
+
+.planner-select-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  color: #525966;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.planner-select-option:hover { color: #252a33; background: #f3f5f9; }
+.planner-select-option--active { color: var(--app-accent); background: var(--app-accent-soft); }
 
 .app-footer {
   color: #9ba1ac;
@@ -181,14 +373,45 @@ select:focus-visible {
 }
 
 #calendar-workspace-panel h2 {
-  font-size: 15px;
+  font-size: var(--font-size-title);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #252a33;
 }
 
+.context-card > h3 {
+  font-size: var(--font-size-title);
+}
+
+#calendar-context-sidebar .context-card > div:first-child > span:first-child {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
 #calendar-workspace-panel h2 svg {
   color: var(--app-accent);
+}
+
+#btn-calendar-today,
+#btn-view-3day,
+#btn-view-week,
+#btn-view-month {
+  font-size: var(--font-size-label) !important;
+  font-weight: 600;
+}
+
+#btn-calendar-today {
+  padding: 4px 8px;
+}
+
+#btn-view-3day,
+#btn-view-week,
+#btn-view-month {
+  padding: 5px 9px;
+}
+
+.month-quick-add {
+  font-size: 0 !important;
 }
 
 .calendar-filter-bar {
@@ -272,6 +495,10 @@ select:focus-visible {
 
 .month-today-date > span {
   color: #fff;
+}
+
+.month-gantt-layer {
+  top: 36px;
 }
 
 .day-card-mood {
@@ -420,6 +647,27 @@ select:focus-visible {
   #calendar-context-sidebar {
     grid-column: span 4 / span 4;
   }
+}
+
+@media (max-height: 820px), (max-width: 1279px) {
+  .app-shell { padding: 10px; }
+  .app-window { min-height: calc(100dvh - 20px); }
+  .app-header { min-height: 58px; }
+  .app-content { padding: 12px; }
+  #calendar-workspace-panel, .surface-panel { padding: 14px; }
+  #calendar-section-root { gap: 12px; }
+  #calendar-grid .three-day-cards { min-height: 300px; }
+  #calendar-grid .h-\[125px\] { height: 78px; }
+  #calendar-grid .min-h-\[300px\] { min-height: 230px; }
+}
+
+@media (max-height: 700px) and (min-width: 768px) {
+  .app-header { min-height: 52px; }
+  #calendar-workspace-panel { gap: 8px; }
+  #calendar-grid .three-day-cards { min-height: 250px; }
+  #calendar-grid .h-\[125px\] { height: 62px; }
+  #calendar-grid .min-h-\[300px\] { min-height: 190px; }
+  .context-card { min-height: 300px !important; }
 }
 
 /* Custom scrollbars for elegant desktop look */
@@ -703,6 +951,12 @@ select:focus-visible {
   position: relative;
   z-index: 40;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16), 0 5px 14px rgba(59, 130, 246, 0.12);
+}
+
+/* Context cards show only the insertion line; their rounded card must not get
+   the generic rectangular insertion shadow used by calendar items. */
+[data-task-drop-position][data-task-drop-surface='context'] {
+  box-shadow: none;
 }
 
 [data-task-drop-position]::before,

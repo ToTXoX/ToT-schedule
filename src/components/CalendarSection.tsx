@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Category, Task, Subtask, Urgency, Note, Mood, MoodEmoji 
 } from '../types';
@@ -9,6 +10,7 @@ import {
   Check, Eraser
 } from '../icons';
 import PlannerDatePicker from './PlannerDatePicker';
+import Select from './Select';
 
 interface CalendarSectionProps {
   categories: Category[];
@@ -39,6 +41,7 @@ interface TaskDragPayload {
 }
 
 type TaskDropPosition = 'before' | 'after';
+type TaskDragSurface = 'calendar' | 'context';
 
 interface TaskDropIndicator {
   taskId: string;
@@ -103,6 +106,15 @@ const getNotionColorStyles = (colorHex: string, isCompleted: boolean) => {
     background: `${colorHex}15`,
     border: `1px solid ${colorHex}35`,
     color: colorHex,
+  };
+};
+
+const getCategoryBadgeStyles = (category?: Category) => {
+  const color = category?.colorHex || '#737373';
+  return {
+    color,
+    borderColor: category ? `${color}35` : '#e5e5e5',
+    backgroundColor: category ? `${color}12` : '#f5f5f5',
   };
 };
 
@@ -221,21 +233,47 @@ export default function CalendarSection({
   // Active click-to-pick mood date state (Fixing monthly mood selection)
   const [activeMoodPickerDate, setActiveMoodPickerDate] = useState<string | null>(null);
   const [moodPickerPosition, setMoodPickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const moodPickerAnchorRef = useRef<HTMLButtonElement | null>(null);
+
+  const updateMonthMoodPickerPosition = (button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    const popupWidth = 268;
+    const popupHeight = 52;
+    const centeredLeft = rect.left + rect.width / 2 - popupWidth / 2;
+    const left = Math.max(8, Math.min(centeredLeft, window.innerWidth - popupWidth - 8));
+    const top = rect.bottom + popupHeight + 8 <= window.innerHeight
+      ? rect.bottom + 6
+      : rect.top - popupHeight - 6;
+    setMoodPickerPosition({ top, left });
+  };
 
   const toggleMonthMoodPicker = (dateStr: string, button: HTMLButtonElement) => {
     if (activeMoodPickerDate === dateStr) {
       setActiveMoodPickerDate(null);
       setMoodPickerPosition(null);
+      moodPickerAnchorRef.current = null;
       return;
     }
 
-    const rect = button.getBoundingClientRect();
-    const popupWidth = 224;
-    const left = Math.max(8, Math.min(rect.right - popupWidth, window.innerWidth - popupWidth - 8));
-    const top = rect.bottom + 58 <= window.innerHeight ? rect.bottom + 6 : rect.top - 58;
-    setMoodPickerPosition({ top, left });
+    moodPickerAnchorRef.current = button;
+    updateMonthMoodPickerPosition(button);
     setActiveMoodPickerDate(dateStr);
   };
+
+  useEffect(() => {
+    if (!activeMoodPickerDate) return;
+    const reposition = () => {
+      if (moodPickerAnchorRef.current?.isConnected) {
+        updateMonthMoodPickerPosition(moodPickerAnchorRef.current);
+      }
+    };
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [activeMoodPickerDate]);
 
   // Editing Task details modal state (Fixing click to edit in calendar)
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -270,6 +308,7 @@ export default function CalendarSection({
   // Drag-resize state for multi-day tasks
   const [resizingTask, setResizingTask] = useState<{ id: string; edge: 'start' | 'end'; deltaDays: number } | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [taskDragSurface, setTaskDragSurface] = useState<TaskDragSurface | null>(null);
   const [taskDropIndicator, setTaskDropIndicator] = useState<TaskDropIndicator | null>(null);
   const draggedTaskRef = useRef<TaskDragPayload | null>(null);
 
@@ -562,61 +601,45 @@ export default function CalendarSection({
   };
 
   const isMultiDayForRender = (task: Task): boolean => {
-    return !!task.date;
+    return !!task.date && (!task.repeat || task.repeat === 'none');
+  };
+
+  const getTaskRenderRange = (task: Task) => {
+    let start = task.date || '';
+    let end = task.endDate || task.date || '';
+    if (resizingTask?.id === task.id) {
+      if (resizingTask.edge === 'start') {
+        const date = new Date(start);
+        date.setDate(date.getDate() + resizingTask.deltaDays);
+        start = formatDate(date);
+        if (start > end) start = end;
+      } else {
+        const date = new Date(end);
+        date.setDate(date.getDate() + resizingTask.deltaDays);
+        end = formatDate(date);
+        if (end < start) end = start;
+      }
+    }
+    return { start, end };
   };
 
   const getActiveMultiDayTasks = (activeDates: string[]) => {
     return visibleTasks.filter(task => {
       if (!isMultiDayForRender(task)) return false;
-      
-      // Calculate active dates with active resizing delta
-      let renderStartDate = task.date || '';
-      let renderEndDate = task.endDate || task.date || '';
-      if (resizingTask && resizingTask.id === task.id) {
-        if (resizingTask.edge === 'start') {
-          const d = new Date(renderStartDate);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          renderStartDate = formatDate(d);
-        } else {
-          const d = new Date(renderEndDate);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          renderEndDate = formatDate(d);
-        }
-      }
-      return activeDates.some(date => date >= renderStartDate && date <= renderEndDate);
+      const range = getTaskRenderRange(task);
+      return activeDates.some(date => date >= range.start && date <= range.end);
     });
   };
 
   const layoutMultiDayTasks = (activeTasks: Task[], activeDates: string[]) => {
     const rows: Task[][] = [];
     const sorted = [...activeTasks].sort((a, b) => {
-      let startA = a.date || '';
-      let endA = a.endDate || a.date || '';
-      let startB = b.date || '';
-      let endB = b.endDate || b.date || '';
-
-      if (resizingTask && resizingTask.id === a.id) {
-        if (resizingTask.edge === 'start') {
-          const d = new Date(startA);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          startA = formatDate(d);
-        } else {
-          const d = new Date(endA);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          endA = formatDate(d);
-        }
-      }
-      if (resizingTask && resizingTask.id === b.id) {
-        if (resizingTask.edge === 'start') {
-          const d = new Date(startB);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          startB = formatDate(d);
-        } else {
-          const d = new Date(endB);
-          d.setDate(d.getDate() + resizingTask.deltaDays);
-          endB = formatDate(d);
-        }
-      }
+      const rangeA = getTaskRenderRange(a);
+      const rangeB = getTaskRenderRange(b);
+      const startA = rangeA.start;
+      const endA = rangeA.end;
+      const startB = rangeB.start;
+      const endB = rangeB.end;
 
       if (startA !== startB) return startA.localeCompare(startB);
       if (a.order !== b.order) return a.order - b.order;
@@ -629,35 +652,9 @@ export default function CalendarSection({
       let rowPlaced = false;
       for (let r = 0; r < rows.length; r++) {
         const overlaps = rows[r].some(existing => {
-          let startA = task.date || '';
-          let endA = task.endDate || task.date || '';
-          let startB = existing.date || '';
-          let endB = existing.endDate || existing.date || '';
-
-          if (resizingTask && resizingTask.id === task.id) {
-            if (resizingTask.edge === 'start') {
-              const d = new Date(startA);
-              d.setDate(d.getDate() + resizingTask.deltaDays);
-              startA = formatDate(d);
-            } else {
-              const d = new Date(endA);
-              d.setDate(d.getDate() + resizingTask.deltaDays);
-              endA = formatDate(d);
-            }
-          }
-          if (resizingTask && resizingTask.id === existing.id) {
-            if (resizingTask.edge === 'start') {
-              const d = new Date(startB);
-              d.setDate(d.getDate() + resizingTask.deltaDays);
-              startB = formatDate(d);
-            } else {
-              const d = new Date(endB);
-              d.setDate(d.getDate() + resizingTask.deltaDays);
-              endB = formatDate(d);
-            }
-          }
-
-          return (startA <= endB) && (endA >= startB);
+          const taskRange = getTaskRenderRange(task);
+          const existingRange = getTaskRenderRange(existing);
+          return taskRange.start <= existingRange.end && taskRange.end >= existingRange.start;
         });
         if (!overlaps) {
           rows[r].push(task);
@@ -686,21 +683,94 @@ export default function CalendarSection({
   };
 
   // --- HTML5 Drag & Drop scheduling for Tasks ---
-  const handleTaskDragStart = (e: React.DragEvent, taskId: string, srcDate: string, index: number) => {
+  const handleTaskDragStart = (e: React.DragEvent, taskId: string, srcDate: string, index: number, surface: TaskDragSurface = 'calendar') => {
     const payload: TaskDragPayload = { taskId, sourceDate: srcDate, sourceIndex: index };
     draggedTaskRef.current = payload;
     setDraggedTaskId(taskId);
+    setTaskDragSurface(surface);
     setTaskDropIndicator(null);
 
     const serializedPayload = JSON.stringify(payload);
     e.dataTransfer.setData('application/x-tot-task', serializedPayload);
     e.dataTransfer.setData('text/plain', serializedPayload);
     e.dataTransfer.effectAllowed = 'move';
+
+    // WebView's default drag preview loses the card's rounded clipping. Draw a
+    // dedicated rounded preview so the drag feedback stays visible without the
+    // native square outline.
+    if (surface === 'context') {
+      const task = tasks.find(item => item.id === taskId);
+      const category = categories.find(item => item.id === task?.categoryId);
+      const cssWidth = Math.min(320, Math.max(220, e.currentTarget.getBoundingClientRect().width));
+      const cssHeight = 58;
+      const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = cssWidth * pixelRatio;
+      canvas.height = cssHeight * pixelRatio;
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.setAttribute('aria-hidden', 'true');
+      Object.assign(canvas.style, {
+        position: 'fixed',
+        top: '-1000px',
+        left: '-1000px',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(canvas);
+
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.scale(pixelRatio, pixelRatio);
+        const x = 8;
+        const y = 7;
+        const width = cssWidth - 16;
+        const height = 44;
+        const radius = 12;
+        context.beginPath();
+        context.moveTo(x + radius, y);
+        context.lineTo(x + width - radius, y);
+        context.arcTo(x + width, y, x + width, y + radius, radius);
+        context.lineTo(x + width, y + height - radius);
+        context.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        context.lineTo(x + radius, y + height);
+        context.arcTo(x, y + height, x, y + height - radius, radius);
+        context.lineTo(x, y + radius);
+        context.arcTo(x, y, x + radius, y, radius);
+        context.closePath();
+        context.shadowColor = 'rgba(24, 32, 48, 0.18)';
+        context.shadowBlur = 10;
+        context.shadowOffsetY = 3;
+        context.fillStyle = 'rgba(255, 255, 255, 0.98)';
+        context.fill();
+        context.shadowColor = 'transparent';
+
+        context.beginPath();
+        context.arc(25, cssHeight / 2, 4, 0, Math.PI * 2);
+        context.fillStyle = category?.colorHex || '#9ca3af';
+        context.fill();
+
+        context.fillStyle = '#343a45';
+        context.font = '600 12px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+        context.textBaseline = 'middle';
+        const title = task?.title || '日程';
+        const maxTextWidth = cssWidth - 56;
+        let previewTitle = title;
+        while (previewTitle.length > 1 && context.measureText(previewTitle).width > maxTextWidth) {
+          previewTitle = previewTitle.slice(0, -1);
+        }
+        if (previewTitle !== title) previewTitle = `${previewTitle}…`;
+        context.fillText(previewTitle, 38, cssHeight / 2);
+      }
+
+      e.dataTransfer.setDragImage(canvas, 24, cssHeight / 2);
+      window.setTimeout(() => canvas.remove(), 0);
+    }
   };
 
   const clearTaskDragState = () => {
     draggedTaskRef.current = null;
     setDraggedTaskId(null);
+    setTaskDragSurface(null);
     setTaskDropIndicator(null);
   };
 
@@ -782,8 +852,36 @@ export default function CalendarSection({
     return nextTask ? (targetTask.order + nextTask.order) / 2 : targetTask.order + 1;
   };
 
-  const getTaskDropPosition = (taskId: string) =>
-    taskDropIndicator?.taskId === taskId ? taskDropIndicator.position : undefined;
+  const getTaskDropPosition = (taskId: string, surface: TaskDragSurface = 'calendar') =>
+    taskDragSurface === surface && taskDropIndicator?.taskId === taskId
+      ? taskDropIndicator.position
+      : undefined;
+
+  const getGanttPointerDate = (e: React.DragEvent, activeDates: string[]): string => {
+    const target = e.target as HTMLElement;
+    const ganttGrid = target.closest<HTMLElement>('[data-gantt-grid]') || e.currentTarget as HTMLElement;
+    const rect = ganttGrid.getBoundingClientRect();
+    if (!rect.width || activeDates.length === 0) return activeDates[0] || todayStr;
+    const relativeX = Math.max(0, Math.min(e.clientX - rect.left, rect.width - 1));
+    const columnIndex = Math.min(activeDates.length - 1, Math.floor(relativeX / (rect.width / activeDates.length)));
+    return activeDates[columnIndex];
+  };
+
+  const handleTaskDropOnGanttBackground = (e: React.DragEvent, activeDates: string[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleTaskDropOnDate(e, getGanttPointerDate(e, activeDates));
+  };
+
+  const handleTaskDropOnGanttItem = (
+    e: React.DragEvent,
+    targetTask: Task,
+    activeDates: string[]
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleTaskDropOnTaskItem(e, targetTask, getGanttPointerDate(e, activeDates));
+  };
 
   const handleTaskDropOnDate = (e: React.DragEvent, dateStr: string) => {
     e.preventDefault();
@@ -1356,7 +1454,10 @@ export default function CalendarSection({
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
-    const stepWidth = viewMode === 'three-day' ? 150 : viewMode === 'week' ? 100 : 80;
+    const ganttGrid = (e.currentTarget as HTMLElement).closest<HTMLElement>('[data-gantt-grid]');
+    const columnCount = Number(ganttGrid?.dataset.ganttColumns) || (viewMode === 'three-day' ? 3 : 7);
+    const measuredWidth = ganttGrid?.getBoundingClientRect().width || 0;
+    const stepWidth = measuredWidth > 0 ? measuredWidth / columnCount : (viewMode === 'three-day' ? 150 : 100);
     
     let currentDelta = 0;
     justResizedRef.current = false;
@@ -1623,11 +1724,11 @@ export default function CalendarSection({
                           )}
                         </div>
                         {isToday ? (
-                          <span className="today-star-date flex-shrink-0 text-[10px] font-medium text-neutral-600">
+                          <span className="today-star-date flex-shrink-0 text-[11px] font-medium text-neutral-600">
                             <span>{day.dateStr.split('-')[2]}</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] w-5 h-5 leading-5 text-center rounded-full flex-shrink-0 transition-all bg-neutral-200 text-neutral-600 font-medium">
+                          <span className="text-[11px] w-5 h-5 leading-5 text-center rounded-full flex-shrink-0 transition-all bg-neutral-200 text-neutral-600 font-medium">
                             {day.dateStr.split('-')[2]}
                           </span>
                         )}
@@ -1644,7 +1745,13 @@ export default function CalendarSection({
                   const rows = layoutMultiDayTasks(activeMulti, activeDates);
                   if (activeMulti.length === 0) return null;
                   return (
-                    <div className="relative z-30 space-y-1.5 py-3 w-full px-2">
+                    <div
+                      className="relative z-30 space-y-1.5 py-3 w-full px-2"
+                      data-gantt-grid
+                      data-gantt-columns="3"
+                      onDragOver={handleTaskDragOver}
+                      onDrop={(e) => handleTaskDropOnGanttBackground(e, activeDates)}
+                    >
                       {rows.map((rowTasks, rIdx) => (
                         <div key={rIdx} className="grid grid-cols-3 gap-3 h-7.5 relative w-full">
                           {rowTasks.map(task => {
@@ -1685,7 +1792,7 @@ export default function CalendarSection({
                                 onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
                                 onDragEnd={handleTaskDragEnd}
                                 onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
-                                onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
+                                onDrop={(e) => handleTaskDropOnGanttItem(e, task, activeDates)}
                                 onClick={() => {
                                   if (justResizedRef.current) return;
                                   openEditTaskModal(task);
@@ -1730,14 +1837,14 @@ export default function CalendarSection({
                                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-200 flex-shrink-0 pr-1 relative z-30">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); adjustTaskEndDate(task, -1); }}
-                                    className="w-4 h-4 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[10px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
+                                    className="w-4 h-4 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[11px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
                                     title="缩短1天"
                                   >
                                     -
                                   </button>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); adjustTaskEndDate(task, 1); }}
-                                    className="w-4 h-4 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[10px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
+                                    className="w-4 h-4 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[11px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
                                     title="延长1天"
                                   >
                                     +
@@ -1809,11 +1916,11 @@ export default function CalendarSection({
                                   <span className={`font-semibold truncate flex-1 leading-tight ${task.completed ? 'line-through text-neutral-400' : 'text-neutral-800'}`}>
                                     {task.title}
                                   </span>
-                                  {task.time && <span className="text-[8px] bg-white/60 text-neutral-600 px-1 py-0.2 rounded font-mono flex-shrink-0 leading-none">{task.time}</span>}
+                                  {task.time && <span className="text-[11px] bg-white/60 text-neutral-600 px-1 py-0.2 rounded font-mono flex-shrink-0 leading-none">{task.time}</span>}
                                 </div>
 
                                 <div className="flex items-center justify-between mt-0 pl-0 ml-3.5 leading-none">
-                                  <span className="text-[8px] text-neutral-400 font-mono leading-none">
+                                  <span className="text-[11px] text-neutral-400 font-mono leading-none">
                                     {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
                                   </span>
                                 </div>
@@ -1829,7 +1936,7 @@ export default function CalendarSection({
                             e.stopPropagation();
                             setQuickAddTaskDate(day.dateStr);
                           }}
-                          className="mt-3 w-full py-1.5 border border-dashed border-neutral-200 rounded-xl text-[10px] font-bold text-neutral-500 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/20 transition flex items-center justify-center cursor-pointer"
+                          className="mt-3 w-full py-1.5 border border-dashed border-neutral-200 rounded-xl text-[11px] font-bold text-neutral-500 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/20 transition flex items-center justify-center cursor-pointer"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           新建任务
@@ -1906,7 +2013,7 @@ export default function CalendarSection({
                         {/* 1. Date Header */}
                         <div className="text-center pb-2 border-b border-neutral-100/80 mb-2 flex flex-col items-center justify-center h-[52px]">
                           <div className="flex items-center justify-center gap-1 mb-1">
-                            <span className={`text-[9px] block font-bold ${isToday ? 'text-blue-600 font-extrabold' : 'text-neutral-400'} leading-none`}>
+                            <span className={`text-[11px] block font-bold ${isToday ? 'text-blue-600 font-extrabold' : 'text-neutral-400'} leading-none`}>
                               {day.dayName}
                             </span>
                             {showMoodEmojis && dayMood.emoji && (
@@ -1949,7 +2056,7 @@ export default function CalendarSection({
                                 openEditTaskModal(task);
                               }}
                               style={getTaskStyle(task)}
-                              className={`p-2.5 px-3 rounded-xl text-[10px] cursor-pointer group hover:scale-[1.02] hover:shadow transition relative border-l-4 ${
+                              className={`p-2.5 px-3 rounded-xl text-[11px] cursor-pointer group hover:scale-[1.02] hover:shadow transition relative border-l-4 ${
                                 task.completed ? 'opacity-60' : ''
                               }`}
                             >
@@ -1971,7 +2078,7 @@ export default function CalendarSection({
                                   {task.title}
                                 </span>
                               </div>
-                              {task.time && <div className="text-[8px] text-neutral-400 font-mono mt-0.5 ml-4">{task.time}</div>}
+                              {task.time && <div className="text-[11px] text-neutral-400 font-mono mt-0.5 ml-4">{task.time}</div>}
                             </div>
                           ))}
                         </div>
@@ -1983,7 +2090,7 @@ export default function CalendarSection({
                             e.stopPropagation();
                             setQuickAddTaskDate(day.dateStr);
                           }}
-                          className="mt-2 w-full py-1 border border-dashed border-neutral-200 rounded-lg text-[9px] font-bold text-neutral-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/10 transition flex items-center justify-center cursor-pointer whitespace-nowrap"
+                          className="mt-2 w-full py-1 border border-dashed border-neutral-200 rounded-lg text-[11px] font-bold text-neutral-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/10 transition flex items-center justify-center cursor-pointer whitespace-nowrap"
                           title="添加任务"
                         >
                           <Plus className="w-2.5 h-2.5 xl:mr-0.5" />
@@ -1996,7 +2103,11 @@ export default function CalendarSection({
                   {/* Multi-day Gantt Bars (spanning across columns) overlay */}
                   {multiDayRowsCount > 0 && (
                     <div 
-                      className="absolute left-2.5 right-2.5 z-20 pointer-events-none"
+                      className="absolute left-2.5 right-2.5 z-20 pointer-events-auto"
+                      data-gantt-grid
+                      data-gantt-columns="7"
+                      onDragOver={handleTaskDragOver}
+                      onDrop={(e) => handleTaskDropOnGanttBackground(e, activeDates)}
                       style={{ 
                         top: '84px', // Calculated alignment with the Spacer inside card (10px container + 14px card padding + 52px header + 8px gap)
                       }}
@@ -2041,7 +2152,7 @@ export default function CalendarSection({
                                   onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
                                   onDragEnd={handleTaskDragEnd}
                                   onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
-                                  onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
+                                  onDrop={(e) => handleTaskDropOnGanttItem(e, task, activeDates)}
                                   onClick={() => {
                                     if (justResizedRef.current) return;
                                     openEditTaskModal(task);
@@ -2051,7 +2162,7 @@ export default function CalendarSection({
                                     gridColumnStart: startIndex + 1,
                                     gridColumnEnd: endIndex + 2,
                                   }}
-                                  className={`h-7 rounded-md text-[10px] px-2 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative z-20 mx-0.5 ${
+                                  className={`h-7 rounded-md text-[11px] px-2 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative z-20 mx-0.5 ${
                                     isCompleted ? 'opacity-70' : ''
                                   } ${draggedTaskId === task.id ? 'opacity-40' : ''}`}
                                 >
@@ -2082,7 +2193,7 @@ export default function CalendarSection({
 
                                   <div className="min-w-0 flex-1 overflow-hidden px-1.5">
                                     <span
-                                      className={`block w-full font-medium tracking-tight text-[10px] truncate text-center ${isCompleted ? 'line-through text-neutral-400' : ''}`}
+                                      className={`block w-full font-medium tracking-tight text-[11px] truncate text-center ${isCompleted ? 'line-through text-neutral-400' : ''}`}
                                       style={{ color: customStyle.color }}
                                       title={task.title}
                                     >
@@ -2093,14 +2204,14 @@ export default function CalendarSection({
                                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition duration-200 z-30">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); adjustTaskEndDate(task, -1); }}
-                                      className="w-3.5 h-3.5 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[9px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
+                                      className="w-3.5 h-3.5 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[11px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
                                       title="缩短1天"
                                     >
                                       -
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); adjustTaskEndDate(task, 1); }}
-                                      className="w-3.5 h-3.5 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[9px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
+                                      className="w-3.5 h-3.5 bg-white/95 hover:bg-white border border-neutral-200/60 rounded-md flex items-center justify-center text-[11px] font-bold text-neutral-500 hover:text-blue-500 active:scale-90 transition shadow-sm cursor-pointer"
                                       title="延长1天"
                                     >
                                       +
@@ -2180,7 +2291,11 @@ export default function CalendarSection({
                     const rows = layoutMultiDayTasks(activeMulti, activeDates);
 
                     return (
-                      <div key={wIdx} className="relative bg-neutral-100 h-[125px] border-b border-neutral-100 w-full overflow-hidden">
+                      <div
+                        key={wIdx}
+                        className="relative bg-neutral-100 h-[125px] border-b border-neutral-100 w-full overflow-hidden"
+                        style={{ minHeight: `${Math.max(78, 42 + rows.length * 22)}px` }}
+                      >
                         {/* 1. Ground Grid (7 Day Cells) */}
                         <div className="absolute inset-0 grid grid-cols-7 gap-[1px] z-0">
                           {weekDays.map((day, dIdx) => {
@@ -2258,23 +2373,28 @@ export default function CalendarSection({
                                         </button>
                                       )}
 
-                                      {isPickerOpen && moodPickerPosition && (
+                                      {isPickerOpen && moodPickerPosition && createPortal(
                                         <div
-                                          className="fixed bg-white shadow-2xl border border-neutral-200 p-2 rounded-xl flex space-x-2 z-[100] items-center animate-fade-in whitespace-nowrap"
+                                          className="month-mood-picker fixed bg-white shadow-2xl border border-neutral-200 p-2 rounded-xl flex gap-2 items-center animate-fade-in whitespace-nowrap"
                                           style={moodPickerPosition}
+                                          onClick={(e) => e.stopPropagation()}
                                         >
                                           {MOOD_OPTIONS.map(opt => (
                                             <button
                                               key={opt.emoji}
                                               type="button"
+                                              aria-pressed={dayMood.emoji === opt.emoji}
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 const shouldClear = dayMood.emoji === opt.emoji;
                                                 onUpdateMood(day.dateStr, shouldClear ? '' : opt.emoji, shouldClear ? '' : dayMood.text);
                                                 setActiveMoodPickerDate(null);
                                                 setMoodPickerPosition(null);
+                                                moodPickerAnchorRef.current = null;
                                               }}
-                                              className="text-base hover:scale-130 transition cursor-pointer"
+                                              className={`month-mood-picker__emoji transition cursor-pointer ${
+                                                dayMood.emoji === opt.emoji ? 'month-mood-picker__emoji--selected' : ''
+                                              }`}
                                               title={opt.label}
                                             >
                                               {opt.char}
@@ -2283,29 +2403,36 @@ export default function CalendarSection({
                                           {dayMood.emoji && (
                                             <button
                                               type="button"
+                                              aria-label="清除心情"
+                                              title="清除心情"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 onUpdateMood(day.dateStr, '', '');
                                                 setActiveMoodPickerDate(null);
                                                 setMoodPickerPosition(null);
+                                                moodPickerAnchorRef.current = null;
                                               }}
-                                              className="text-[10px] text-red-500 hover:underline px-1 bg-red-50 rounded"
+                                              className="month-mood-picker__action month-mood-picker__action--clear"
                                             >
-                                              清除
+                                              <Eraser className="h-3.5 w-3.5" />
                                             </button>
                                           )}
                                           <button
                                             type="button"
+                                            aria-label="关闭表情选择器"
+                                            title="关闭"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               setActiveMoodPickerDate(null);
                                               setMoodPickerPosition(null);
+                                              moodPickerAnchorRef.current = null;
                                             }}
-                                            className="text-[10px] text-neutral-400 hover:text-neutral-700 pl-1"
+                                            className="month-mood-picker__action"
                                           >
-                                            关闭
+                                            <X className="h-3.5 w-3.5" />
                                           </button>
-                                        </div>
+                                        </div>,
+                                        document.body,
                                       )}
                                     </div>
                                   )}
@@ -2327,7 +2454,7 @@ export default function CalendarSection({
                                         openEditTaskModal(task);
                                       }}
                                       style={getTaskStyle(task)}
-                                      className={`px-1 py-0.5 text-[9px] rounded truncate cursor-pointer font-semibold relative border-l ${
+                                      className={`px-1 py-0.5 text-[11px] rounded truncate cursor-pointer font-semibold relative border-l ${
                                         task.completed ? 'opacity-60 line-through text-neutral-400' : 'text-neutral-800'
                                       }`}
                                       title={`${task.title} ${task.time || ''}`}
@@ -2358,13 +2485,15 @@ export default function CalendarSection({
                                 {/* Quick Add button */}
                                 <button
                                   type="button"
+                                  aria-label={`在 ${day.dateStr} 新增日程`}
+                                  title="新增日程"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setQuickAddTaskDate(day.dateStr);
                                   }}
-                                  className="opacity-0 group-hover/column:opacity-100 absolute bottom-1 right-1.5 text-[9px] font-bold text-blue-500 hover:text-blue-600 hover:underline transition-all cursor-pointer z-30"
+                                  className="month-quick-add opacity-0 group-hover/column:opacity-100 absolute bottom-1 right-1.5 flex h-5 w-5 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-500 hover:border-blue-200 hover:bg-blue-100 hover:text-blue-700 transition-all cursor-pointer z-30"
                                 >
-                                  + 新增
+                                  <Plus className="h-3 w-3" />
                                 </button>
                               </div>
                             );
@@ -2373,7 +2502,13 @@ export default function CalendarSection({
 
                         {/* 2. Absolute overlay for multi-day task Gantt bars */}
                         {activeMulti.length > 0 && (
-                          <div className="absolute top-[28px] inset-x-0 space-y-0.5 z-20 pointer-events-none">
+                          <div
+                            className="month-gantt-layer absolute inset-x-0 space-y-0.5 z-20 pointer-events-auto"
+                            data-gantt-grid
+                            data-gantt-columns="7"
+                            onDragOver={handleTaskDragOver}
+                            onDrop={(e) => handleTaskDropOnGanttBackground(e, activeDates)}
+                          >
                             {rows.map((rowTasks, rIdx) => (
                               <div key={rIdx} className="grid grid-cols-7 gap-[1px] h-5 relative w-full">
                                 {rowTasks.map(task => {
@@ -2414,7 +2549,7 @@ export default function CalendarSection({
                                       onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || todayStr, 0)}
                                       onDragEnd={handleTaskDragEnd}
                                       onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
-                                      onDrop={(e) => handleTaskDropOnTaskItem(e, task, task.date || todayStr)}
+                                      onDrop={(e) => handleTaskDropOnGanttItem(e, task, activeDates)}
                                       onClick={() => {
                                         if (justResizedRef.current) return;
                                         openEditTaskModal(task);
@@ -2424,7 +2559,7 @@ export default function CalendarSection({
                                         gridColumnStart: startIndex + 1,
                                         gridColumnEnd: endIndex + 2,
                                       }}
-                                      className={`h-5 rounded-md text-[8px] px-1.5 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative mx-0.5 z-20 ${
+                                      className={`h-5 rounded-md text-[11px] px-1.5 flex items-center justify-between cursor-pointer group pointer-events-auto transition-all select-none hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:brightness-[0.98] active:scale-[0.99] relative mx-0.5 z-20 ${
                                         isCompleted ? 'opacity-70' : ''
                                       } ${draggedTaskId === task.id ? 'opacity-40' : ''}`}
                                     >
@@ -2453,7 +2588,7 @@ export default function CalendarSection({
                                             {isCompleted && <Check className="w-1.5 h-1.5 stroke-[3.5] text-white" />}
                                           </div>
                                         </button>
-                                        <span className={`font-medium tracking-tight text-[9px] truncate ${isCompleted ? 'line-through text-neutral-400' : ''}`} style={{ color: customStyle.color }}>
+                                        <span className={`font-medium tracking-tight text-[11px] truncate ${isCompleted ? 'line-through text-neutral-400' : ''}`} style={{ color: customStyle.color }}>
                                           {task.title}
                                         </span>
                                       </div>
@@ -2554,8 +2689,8 @@ export default function CalendarSection({
                                 autoFocus
                               />
                               <div className="flex justify-end space-x-1.5">
-                                <button onClick={() => setEditingNoteId(null)} className="p-1 rounded text-neutral-400 hover:text-neutral-600 text-[10px]">取消</button>
-                                <button onClick={() => saveNoteEdit(note.id)} className="px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-black text-[10px] font-bold shadow-sm">保存</button>
+                                <button onClick={() => setEditingNoteId(null)} className="p-1 rounded text-neutral-400 hover:text-neutral-600 text-[11px]">取消</button>
+                                <button onClick={() => saveNoteEdit(note.id)} className="px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-black text-[11px] font-bold shadow-sm">保存</button>
                               </div>
                             </div>
                           ) : (
@@ -2653,7 +2788,7 @@ export default function CalendarSection({
                           title={opt.label}
                         >
                           <span 
-                            className={`text-2xl select-none transition-all duration-300 transform block origin-center ${
+                            className={`mood-emoji text-2xl select-none transition-all duration-300 transform block origin-center ${
                               isSelected
                                 ? 'grayscale-0 animate-mood-pop'
                                 : 'grayscale opacity-40 mood-emoji-unselected'
@@ -2680,8 +2815,8 @@ export default function CalendarSection({
                             autoFocus
                           />
                           <div className="flex justify-end space-x-1.5">
-                            <button onClick={() => setIsEditingTodayMoodText(false)} className="text-[10px] text-neutral-400 hover:text-neutral-600">取消</button>
-                            <button onClick={handleSaveTodayMoodText} className="text-[10px] text-blue-600 font-bold hover:underline">保存</button>
+                            <button onClick={() => setIsEditingTodayMoodText(false)} className="text-[11px] text-neutral-400 hover:text-neutral-600">取消</button>
+                            <button onClick={handleSaveTodayMoodText} className="text-[11px] text-blue-600 font-bold hover:underline">保存</button>
                           </div>
                         </div>
                       ) : (
@@ -2720,7 +2855,7 @@ export default function CalendarSection({
             >
               <h3 className="text-xs font-bold text-neutral-800 pb-1.5 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
                 <span>本周日程</span>
-                <span className="text-[10px] bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded-lg font-semibold">共 {thisWeekTasks.length} 项</span>
+                <span className="text-[11px] bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded-lg font-semibold">共 {thisWeekTasks.length} 项</span>
               </h3>
 
               <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
@@ -2740,7 +2875,7 @@ export default function CalendarSection({
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-[10px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
                         {weekUnscheduled.length}
                       </span>
                     </div>
@@ -2752,7 +2887,7 @@ export default function CalendarSection({
                       onDragOver={handleTaskDragOver}
                       onDrop={(e) => handleUnscheduledContainerDrop(e, 'week')}
                       onClick={() => setQuickAddUnscheduledWeek(startOfWeekStr)}
-                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[10px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[11px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
                     >
                       像雪一样白
                     </button>
@@ -2766,13 +2901,16 @@ export default function CalendarSection({
                         <div 
                           key={task.id} 
                           draggable
-                          data-task-drop-position={getTaskDropPosition(task.id)}
-                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0)}
+                          data-task-drop-position={getTaskDropPosition(task.id, 'context')}
+                          data-task-drop-surface="context"
+                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0, 'context')}
                           onDragEnd={handleTaskDragEnd}
                           onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'week')}
                           onClick={() => openEditTaskModal(task)}
-                          className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
+                          className={`unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item ${
+                            draggedTaskId === task.id && taskDragSurface === 'context' ? 'opacity-55 scale-[0.99]' : ''
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -2802,13 +2940,13 @@ export default function CalendarSection({
 
                           <div className="flex items-center justify-between mt-1.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="unscheduled-status-badge text-[8px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
-                              <span className="text-[8px] bg-white/80 text-neutral-500 border border-neutral-200/70 px-1.5 py-0.5 rounded font-medium">
+                              <span className="unscheduled-status-badge text-[11px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
+                              <span className="text-[11px] border px-1.5 py-0.5 rounded font-medium" style={getCategoryBadgeStyles(categories.find(c => c.id === task.categoryId))}>
                                 {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
                               </span>
                             </div>
                             
-                            <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
+                            <span className={`text-[11px] px-1 py-0.2 rounded font-bold ${
                               task.urgency === 'high' ? 'bg-red-100 text-red-700' :
                               task.urgency === 'medium' ? 'bg-orange-100 text-orange-700' :
                               task.urgency === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-400'
@@ -2831,13 +2969,13 @@ export default function CalendarSection({
                       <Clock className="w-3.5 h-3.5 mr-1.5 text-neutral-400" />
                       已确定日程
                     </span>
-                    <span className="text-[10px] font-black bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md">
+                    <span className="text-[11px] font-black bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md">
                       {weekScheduled.length}
                     </span>
                   </div>
 
                   {weekScheduled.length === 0 ? (
-                    <div className="text-[10px] text-neutral-400 py-4 text-center border border-dashed border-neutral-200 rounded-xl italic">
+                    <div className="text-[11px] text-neutral-400 py-4 text-center border border-dashed border-neutral-200 rounded-xl italic">
                       空空白白，真好～
                     </div>
                   ) : (
@@ -2851,13 +2989,16 @@ export default function CalendarSection({
                           <div 
                             key={task.id} 
                             draggable
-                            data-task-drop-position={getTaskDropPosition(task.id)}
-                            onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0)}
+                            data-task-drop-position={getTaskDropPosition(task.id, 'context')}
+                            data-task-drop-surface="context"
+                            onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0, 'context')}
                             onDragEnd={handleTaskDragEnd}
                             onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                             onDrop={(e) => handleTaskDropOnTaskItem(e, task, taskDate)}
                             onClick={() => openEditTaskModal(task)}
-                            className="p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition"
+                            className={`p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition ${
+                              draggedTaskId === task.id && taskDragSurface === 'context' ? 'opacity-55 scale-[0.99]' : ''
+                            }`}
                           >
                             <div className="flex items-center justify-between gap-1.5">
                               <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -2881,22 +3022,22 @@ export default function CalendarSection({
                                   {task.title}
                                 </span>
                               </div>
-                              <span className="text-[9px] bg-neutral-200/80 text-neutral-600 px-1.5 py-0.2 rounded font-semibold flex-shrink-0">
+                              <span className="text-[11px] bg-neutral-200/80 text-neutral-600 px-1.5 py-0.2 rounded font-semibold flex-shrink-0">
                                 {task.date}
                               </span>
                             </div>
 
                             <div className="flex items-center justify-between mt-1.5 gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-[9px] text-neutral-400 font-mono flex-shrink-0">
+                                <span className="text-[11px] text-neutral-400 font-mono flex-shrink-0">
                                   {task.time || '全天日程'}
                                 </span>
-                                <span className="text-[8px] bg-white text-neutral-500 border border-neutral-200 px-1.5 py-0.5 rounded font-medium truncate">
+                                <span className="text-[11px] border px-1.5 py-0.5 rounded font-medium truncate" style={getCategoryBadgeStyles(categories.find(c => c.id === task.categoryId))}>
                                   {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
                                 </span>
                               </div>
                               
-                              <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
+                              <span className={`text-[11px] px-1 py-0.2 rounded font-bold ${
                                 task.urgency === 'high' ? 'bg-red-100 text-red-700' :
                                 task.urgency === 'medium' ? 'bg-orange-100 text-orange-700' :
                                 task.urgency === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-400'
@@ -2930,7 +3071,7 @@ export default function CalendarSection({
             >
               <h3 className="text-xs font-bold text-neutral-800 pb-1.5 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
                 <span>本月日程</span>
-                <span className="text-[10px] bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded-lg font-semibold">共 {thisMonthTasks.length} 项</span>
+                <span className="text-[11px] bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded-lg font-semibold">共 {thisMonthTasks.length} 项</span>
               </h3>
 
               <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
@@ -2949,7 +3090,7 @@ export default function CalendarSection({
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-[10px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-semibold bg-white text-neutral-500 border border-neutral-200 px-2 py-0.5 rounded-md">
                         {monthUnscheduled.length}
                       </span>
                     </div>
@@ -2961,7 +3102,7 @@ export default function CalendarSection({
                       onDragOver={handleTaskDragOver}
                       onDrop={(e) => handleUnscheduledContainerDrop(e, 'month')}
                       onClick={() => setQuickAddUnscheduledMonth(startOfMonthStr.substring(0, 7))}
-                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[10px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full py-4 text-center border border-dashed border-neutral-200 hover:border-neutral-300 rounded-xl bg-neutral-50/40 hover:bg-neutral-50 transition-all text-[11px] text-neutral-400 hover:text-neutral-600 italic font-normal flex items-center justify-center gap-1 cursor-pointer"
                     >
                       像雪一样白
                     </button>
@@ -2975,13 +3116,16 @@ export default function CalendarSection({
                         <div 
                           key={task.id} 
                           draggable
-                          data-task-drop-position={getTaskDropPosition(task.id)}
-                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0)}
+                          data-task-drop-position={getTaskDropPosition(task.id, 'context')}
+                          data-task-drop-surface="context"
+                          onDragStart={(e) => handleTaskDragStart(e, task.id, task.date || '', 0, 'context')}
                           onDragEnd={handleTaskDragEnd}
                           onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                           onDrop={(e) => handleUnscheduledTaskDropOnTask(e, task, 'month')}
                           onClick={() => openEditTaskModal(task)}
-                          className="unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item"
+                          className={`unscheduled-task-card p-2.5 rounded-xl border text-xs cursor-grab transition relative group/item ${
+                            draggedTaskId === task.id && taskDragSurface === 'context' ? 'opacity-55 scale-[0.99]' : ''
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -3012,13 +3156,16 @@ export default function CalendarSection({
 
                           <div className="flex items-center justify-between mt-1.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="unscheduled-status-badge text-[8px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
-                              <span className="text-[8px] bg-white/80 text-neutral-500 border border-neutral-200/70 px-1.5 py-0.5 rounded font-medium">
+                              <span className="unscheduled-status-badge text-[11px] px-1.5 py-0.5 rounded font-semibold">待安排</span>
+                              <span
+                                className="text-[11px] border px-1.5 py-0.5 rounded font-medium"
+                                style={getCategoryBadgeStyles(categories.find(c => c.id === task.categoryId))}
+                              >
                                 {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
                               </span>
                             </div>
                             
-                            <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
+                            <span className={`text-[11px] px-1 py-0.2 rounded font-bold ${
                               task.urgency === 'high' ? 'bg-red-100 text-red-700' :
                               task.urgency === 'medium' ? 'bg-orange-100 text-orange-700' :
                               task.urgency === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-400'
@@ -3041,13 +3188,13 @@ export default function CalendarSection({
                       <Clock className="w-3.5 h-3.5 mr-1.5 text-neutral-400" />
                       已确定日程
                     </span>
-                    <span className="text-[10px] font-black bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md">
+                    <span className="text-[11px] font-black bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md">
                       {monthScheduled.length}
                     </span>
                   </div>
 
                   {monthScheduled.length === 0 ? (
-                    <div className="text-[10px] text-neutral-400 py-4 text-center border border-dashed border-neutral-200 rounded-xl italic">
+                    <div className="text-[11px] text-neutral-400 py-4 text-center border border-dashed border-neutral-200 rounded-xl italic">
                       空空白白，真好～
                     </div>
                   ) : (
@@ -3061,13 +3208,16 @@ export default function CalendarSection({
                           <div 
                             key={task.id} 
                             draggable
-                            data-task-drop-position={getTaskDropPosition(task.id)}
-                            onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0)}
+                            data-task-drop-position={getTaskDropPosition(task.id, 'context')}
+                            data-task-drop-surface="context"
+                            onDragStart={(e) => handleTaskDragStart(e, task.id, taskDate, 0, 'context')}
                             onDragEnd={handleTaskDragEnd}
                             onDragOver={(e) => handleTaskItemDragOver(e, task.id)}
                             onDrop={(e) => handleTaskDropOnTaskItem(e, task, taskDate)}
                             onClick={() => openEditTaskModal(task)}
-                            className="p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition animate-fade-in"
+                            className={`p-2.5 bg-neutral-50/50 hover:bg-neutral-100/50 rounded-xl border border-neutral-100 text-xs cursor-pointer hover:shadow-sm transition animate-fade-in ${
+                              draggedTaskId === task.id && taskDragSurface === 'context' ? 'opacity-55 scale-[0.99]' : ''
+                            }`}
                           >
                             <div className="flex items-center justify-between gap-1.5">
                               <div className="flex items-center space-x-2 overflow-hidden flex-1">
@@ -3093,22 +3243,25 @@ export default function CalendarSection({
                                   {task.title}
                                 </span>
                               </div>
-                              <span className="text-[9px] bg-neutral-200/80 text-neutral-600 px-1.5 py-0.2 rounded font-semibold flex-shrink-0">
+                              <span className="text-[11px] bg-neutral-200/80 text-neutral-600 px-1.5 py-0.2 rounded font-semibold flex-shrink-0">
                                 {task.date?.substring(5)}
                               </span>
                             </div>
 
                             <div className="flex items-center justify-between mt-1.5 gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-[9px] text-neutral-400 flex-shrink-0">
+                                <span className="text-[11px] text-neutral-400 flex-shrink-0">
                                   {task.time || '全天日程'}
                                 </span>
-                                <span className="text-[8px] bg-white text-neutral-500 border border-neutral-200 px-1.5 py-0.5 rounded font-medium truncate">
+                                <span
+                                  className="text-[11px] border px-1.5 py-0.5 rounded font-medium truncate"
+                                  style={getCategoryBadgeStyles(categories.find(c => c.id === task.categoryId))}
+                                >
                                   {categories.find(c => c.id === task.categoryId)?.name || '未分类'}
                                 </span>
                               </div>
                               
-                              <span className={`text-[8px] px-1 py-0.2 rounded font-bold ${
+                              <span className={`text-[11px] px-1 py-0.2 rounded font-bold ${
                                 task.urgency === 'high' ? 'bg-red-100 text-red-700' :
                                 task.urgency === 'medium' ? 'bg-orange-100 text-orange-700' :
                                 task.urgency === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-400'
@@ -3134,7 +3287,7 @@ export default function CalendarSection({
 
       {/* QUICK ADD TASK DIALOG OVERLAY */}
       {(quickAddTaskDate || quickAddUnscheduledWeek || quickAddUnscheduledMonth) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="planner-modal-overlay fixed inset-0 bg-black/60 backdrop-blur-sm flex z-50 animate-fade-in">
           <form 
             onSubmit={(e) => {
               e.preventDefault();
@@ -3151,7 +3304,7 @@ export default function CalendarSection({
               setQuickAddUnscheduledWeek(null);
               setQuickAddUnscheduledMonth(null);
             }} 
-            className="bg-white rounded-3xl border border-neutral-200 p-5 w-full max-w-sm shadow-2xl space-y-4 text-xs"
+            className="planner-modal-panel bg-white rounded-3xl border border-neutral-200 p-5 w-full max-w-sm shadow-2xl space-y-4 text-xs"
           >
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
               <span className="font-bold text-neutral-800 text-sm flex items-center">
@@ -3176,7 +3329,7 @@ export default function CalendarSection({
             </div>
 
             <div>
-              <label className="text-[10px] font-semibold text-neutral-400 block mb-1">任务标题</label>
+              <label className="text-[11px] font-semibold text-neutral-400 block mb-1">任务标题</label>
               <input
                 type="text"
                 required
@@ -3189,8 +3342,8 @@ export default function CalendarSection({
             </div>
 
             <div>
-              <label className="text-[10px] font-semibold text-neutral-400 block mb-1">任务分类</label>
-              <select
+              <label className="text-[11px] font-semibold text-neutral-400 block mb-1">任务分类</label>
+              <Select
                 value={quickAddTaskCatId}
                 onChange={(e) => setQuickAddTaskCatId(e.target.value)}
                 className="w-full p-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-blue-500 cursor-pointer"
@@ -3199,7 +3352,7 @@ export default function CalendarSection({
                 {categories.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="flex justify-end space-x-2 pt-1">
@@ -3227,8 +3380,8 @@ export default function CalendarSection({
 
       {/* PREMIUM FULL TASK EDIT MODAL (Saves changes immediately) */}
       {editingTask && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-neutral-200 p-4 w-full max-w-2xl shadow-2xl space-y-3 text-xs relative max-h-[90vh] overflow-y-auto">
+        <div className="planner-modal-overlay fixed inset-0 bg-black/60 backdrop-blur-sm flex z-50 animate-fade-in">
+          <div className="planner-modal-panel bg-white rounded-3xl border border-neutral-200 p-4 w-full max-w-2xl shadow-2xl space-y-3 text-xs relative">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
@@ -3269,7 +3422,7 @@ export default function CalendarSection({
               >
                 <span>子任务</span>
                 {editTaskSubtasks.length > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 text-[9px] bg-blue-100 text-blue-700 rounded-full font-extrabold">
+                  <span className="ml-1.5 px-1.5 py-0.5 text-[11px] bg-blue-100 text-blue-700 rounded-full font-extrabold">
                     {editTaskSubtasks.filter(s => s.completed).length}/{editTaskSubtasks.length}
                   </span>
                 )}
@@ -3290,7 +3443,7 @@ export default function CalendarSection({
 
                 {/* Subtask Section */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
+                  <div className="flex items-center justify-between text-[11px] text-neutral-400 font-bold uppercase tracking-wider">
                     <span>子任务清单 ({editTaskSubtasks.length})</span>
                     {editTaskSubtasks.length > 0 && (
                       <span className="text-blue-600 font-semibold lowercase">
@@ -3417,7 +3570,7 @@ export default function CalendarSection({
               {/* Left Column: Basic Details */}
               <div className="space-y-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">任务名称</label>
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">任务名称</label>
                   <input
                     type="text"
                     value={editTaskTitle}
@@ -3428,7 +3581,7 @@ export default function CalendarSection({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">描述信息</label>
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">描述信息</label>
                   <textarea
                     value={editTaskDesc}
                     onChange={(e) => setEditTaskDesc(e.target.value)}
@@ -3439,8 +3592,8 @@ export default function CalendarSection({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">任务分类</label>
-                    <select
+                    <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">任务分类</label>
+                    <Select
                       value={editTaskCatId}
                       onChange={(e) => setEditTaskCatId(e.target.value)}
                       className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
@@ -3449,12 +3602,12 @@ export default function CalendarSection({
                       {categories.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">优先级</label>
-                    <select
+                    <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-0.5">优先级</label>
+                    <Select
                       value={editTaskUrgency}
                       onChange={(e) => setEditTaskUrgency(e.target.value as Urgency)}
                       className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
@@ -3463,7 +3616,7 @@ export default function CalendarSection({
                       <option value="low">🟩 低优先级</option>
                       <option value="medium">🟨 中优先级</option>
                       <option value="high">🟥 高优先级</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -3473,7 +3626,7 @@ export default function CalendarSection({
                 
                 {/* Schedule Type Tabs */}
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">任务排期</label>
+                  <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">任务排期</label>
                   <div className="grid grid-cols-4 gap-1 p-0.5 bg-neutral-100 rounded-xl border border-neutral-200/60">
                     {(
                       [
@@ -3487,7 +3640,7 @@ export default function CalendarSection({
                         key={opt.value}
                         type="button"
                         onClick={() => setEditTaskScheduleType(opt.value)}
-                        className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        className={`py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                           editTaskScheduleType === opt.value
                             ? 'bg-white text-neutral-800 shadow-sm'
                             : 'text-neutral-500 hover:text-neutral-700'
@@ -3505,7 +3658,7 @@ export default function CalendarSection({
                     <div className="space-y-2.5 w-full animate-fade-in">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
+                          <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
                           <PlannerDatePicker
                             value={editTaskDate}
                             ariaLabel="开始日期"
@@ -3518,7 +3671,7 @@ export default function CalendarSection({
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
+                          <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
                           <PlannerDatePicker
                             value={editTaskEndDate}
                             ariaLabel="结束日期"
@@ -3534,7 +3687,7 @@ export default function CalendarSection({
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">具体时间</label>
+                        <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">具体时间</label>
                         <div className="flex gap-2">
                           <input
                             type="time"
@@ -3559,7 +3712,7 @@ export default function CalendarSection({
 
                   {editTaskScheduleType === 'week' && (
                     <div className="w-full animate-fade-in space-y-1">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
+                      <label className="text-[11px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
                       <PlannerDatePicker
                         value={editTaskScheduledWeek}
                         ariaLabel="选择日期定位至该周"
@@ -3580,7 +3733,7 @@ export default function CalendarSection({
                         }}
                       />
                       {editTaskScheduledWeek && (
-                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                        <p className="text-[11px] text-blue-600 font-extrabold mt-1">
                           已选中：{getWeekOptionLabel(editTaskScheduledWeek)}
                         </p>
                       )}
@@ -3589,7 +3742,7 @@ export default function CalendarSection({
 
                   {editTaskScheduleType === 'month' && (
                     <div className="w-full animate-fade-in space-y-1">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择月份</label>
+                      <label className="text-[11px] font-bold text-neutral-500 block">选择月份</label>
                       <PlannerDatePicker
                         mode="month"
                         value={editTaskScheduledMonth}
@@ -3597,7 +3750,7 @@ export default function CalendarSection({
                         onChange={setEditTaskScheduledMonth}
                       />
                       {editTaskScheduledMonth && (
-                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                        <p className="text-[11px] text-blue-600 font-extrabold mt-1">
                           已选中：{getMonthOptionLabel(editTaskScheduledMonth, 100)}
                         </p>
                       )}
@@ -3611,8 +3764,8 @@ export default function CalendarSection({
                 {editTaskScheduleType === 'date' && (
                   <div className="grid grid-cols-2 gap-2 border-t border-neutral-200/50 pt-2.5">
                     <div>
-                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">重复设置</label>
-                      <select
+                      <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">重复设置</label>
+                      <Select
                         value={editTaskRepeat}
                         onChange={(e) => setEditTaskRepeat(e.target.value as any)}
                         className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
@@ -3621,11 +3774,11 @@ export default function CalendarSection({
                         <option value="daily">每天</option>
                         <option value="weekly">每周</option>
                         <option value="monthly">每月</option>
-                      </select>
+                      </Select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">提醒</label>
-                      <select
+                      <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">提醒</label>
+                      <Select
                         value={editTaskReminder}
                         onChange={(e) => setEditTaskReminder(e.target.value as any)}
                         className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
@@ -3635,7 +3788,7 @@ export default function CalendarSection({
                         <option value="15m">15 分钟前</option>
                         <option value="1h">1 小时前</option>
                         <option value="1d">1 天前</option>
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 )}

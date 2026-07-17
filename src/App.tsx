@@ -482,7 +482,7 @@ export default function App() {
                       </span>
                       <button 
                         onClick={() => setShowNotificationCenter(false)}
-                        className="text-[10px] text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                        className="text-[11px] text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
                       >
                         关闭
                       </button>
@@ -498,9 +498,9 @@ export default function App() {
                           <div key={t.id} className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-100 text-[11px] space-y-1">
                             <div className="flex items-center justify-between font-extrabold text-neutral-800">
                               <span className="truncate">{t.title}</span>
-                              {t.time && <span className="text-blue-600 font-mono text-[10px]">{t.time}</span>}
+                              {t.time && <span className="text-blue-600 font-mono text-[11px]">{t.time}</span>}
                             </div>
-                            <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                            <div className="flex items-center justify-between text-[11px] text-neutral-400">
                               <span>
                                 {categories.find(c => c.id === t.categoryId)?.name || '未分类'}
                               </span>
@@ -518,10 +518,10 @@ export default function App() {
 
                     {urgentTasks.length > 0 && (
                       <div className="pt-2.5 border-t border-neutral-100">
-                        <span className="text-[10px] font-extrabold text-red-500 block mb-1">
+                        <span className="text-[11px] font-extrabold text-red-500 block mb-1">
                           ⚠️ 待办急件提醒 ({urgentTasks.length})
                         </span>
-                        <div className="text-[10px] text-neutral-500 space-y-1">
+                        <div className="text-[11px] text-neutral-500 space-y-1">
                           {urgentTasks.slice(0, 2).map(ut => (
                             <div key={ut.id} className="truncate">• {ut.title} ({ut.date || '无日期'})</div>
                           ))}
@@ -536,7 +536,7 @@ export default function App() {
           </header>
 
           {/* Dynamic Screen Container */}
-          <div className="app-content flex-1 p-4 md:p-5 overflow-y-auto min-h-[500px]">
+          <div className="app-content flex-1 min-h-0 p-4 md:p-5 overflow-y-auto">
             <AnimatePresence mode="wait">
               {activeTab === 'calendar' ? (
                 <motion.div
@@ -598,7 +598,7 @@ export default function App() {
       </main>
 
       {/* 3. Footer */}
-      <footer className="app-footer w-full mx-auto text-center text-[10px] pt-4 pb-1 flex flex-col sm:flex-row items-center justify-between select-none">
+      <footer className="app-footer w-full mx-auto text-center text-[11px] pt-4 pb-1 flex flex-col sm:flex-row items-center justify-between select-none">
         <div>
           © 2026 日程规划
         </div>

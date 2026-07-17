@@ -1,6 +1,6 @@
 [package]
 name = "tot-schedule"
-version = "0.1.1"
+version = "0.1.2"
 description = "轻量本地日程与任务管理应用"
 authors = ["ToT"]
 edition = "2021"

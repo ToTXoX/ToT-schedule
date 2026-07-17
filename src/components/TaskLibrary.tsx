@@ -7,6 +7,7 @@ import {
   GripVertical, Calendar, Clock, AlertTriangle, ArrowUp, ArrowDown, Settings, Check, X, Trash, ArrowUpDown
 } from '../icons';
 import PlannerDatePicker from './PlannerDatePicker';
+import Select from './Select';
 
 const formatDate = (d: Date): string => {
   const year = d.getFullYear();
@@ -657,7 +658,7 @@ export default function TaskLibrary({
       <div id="category-sidebar" className="surface-panel col-span-12 md:col-span-5 lg:col-span-4 bg-white rounded-2xl p-4 border border-neutral-100 flex flex-col space-y-4 min-w-0">
         
         <div className="flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold text-neutral-800 flex items-center">
+          <h3 className="font-sans text-sm font-semibold text-neutral-800 flex items-center">
             <Folder className="w-5 h-5 mr-2 text-neutral-500" />
             任务分类
           </h3>
@@ -731,7 +732,7 @@ export default function TaskLibrary({
               <span className="w-2.5 h-2.5 rounded-full bg-neutral-400 mr-2" />
               全部任务
             </span>
-            <span className="bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+            <span className="bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-full text-[11px] font-bold">
               {tasks.length}
             </span>
           </button>
@@ -745,7 +746,7 @@ export default function TaskLibrary({
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mr-2" />
               未分类
             </span>
-            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[11px] font-bold">
               {tasks.filter(t => !t.categoryId).length}
             </span>
           </button>
@@ -898,7 +899,7 @@ export default function TaskLibrary({
                         </button>
                       </div>
 
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold min-w-[22px] text-center ${selectedCategoryId === cat.id ? cls.badge : 'bg-neutral-100 text-neutral-500'}`}>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold min-w-[22px] text-center ${selectedCategoryId === cat.id ? cls.badge : 'bg-neutral-100 text-neutral-500'}`}>
                         {taskCount}
                       </span>
                     </div>
@@ -1134,7 +1135,7 @@ export default function TaskLibrary({
                                 e.stopPropagation();
                                 onUpdateTask(task.id, { urgency: 'medium' });
                               }}
-                              className="task-urgency-badge text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full font-bold flex items-center cursor-pointer hover:bg-red-200 transition select-none"
+                              className="task-urgency-badge text-[11px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full font-bold flex items-center cursor-pointer hover:bg-red-200 transition select-none"
                               title="当前：高优先级。点击快速降级为中"
                             >
                               <AlertTriangle className="w-2.5 h-2.5 mr-0.5 text-red-600" />
@@ -1147,7 +1148,7 @@ export default function TaskLibrary({
                                 e.stopPropagation();
                                 onUpdateTask(task.id, { urgency: 'low' });
                               }}
-                              className="task-urgency-badge text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-semibold cursor-pointer hover:bg-orange-200 transition select-none"
+                              className="task-urgency-badge text-[11px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-semibold cursor-pointer hover:bg-orange-200 transition select-none"
                               title="当前：中优先级。点击快速降级为低"
                             >
                               中
@@ -1168,7 +1169,7 @@ export default function TaskLibrary({
                         </div>
 
                         {/* Optional Details preview */}
-                        <div className="flex items-center space-x-3 text-[10px] text-neutral-400 mt-1 flex-wrap gap-y-1">
+                        <div className="flex items-center space-x-3 text-[11px] text-neutral-400 mt-1 flex-wrap gap-y-1">
                           {(task.date || inlineEditingDateTaskId === task.id) && (
                             <div className="flex items-center">
                               {inlineEditingDateTaskId === task.id ? (
@@ -1232,7 +1233,7 @@ export default function TaskLibrary({
                                       setInlineEditingTimeTaskId(null);
                                     }
                                   }}
-                                  className="task-time-input text-[10px] px-1.5 py-0.5 bg-white border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800"
+                                  className="task-time-input text-[11px] px-1.5 py-0.5 bg-white border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-800"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
                                 />
@@ -1299,7 +1300,7 @@ export default function TaskLibrary({
                       
                       {/* Sub-tasks Section */}
                       <div className="space-y-1.5 mt-2">
-                        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">子任务</span>
+                        <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block">子任务</span>
                         
                         {/* Subtasks listing */}
                         <div className="space-y-0.5 max-h-[180px] overflow-y-auto pr-0.5">
@@ -1407,8 +1408,8 @@ export default function TaskLibrary({
 
       {/* PREMIUM FULL TASK EDIT MODAL (Saves changes immediately) */}
       {editingTaskId && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-neutral-200 p-4 w-full max-w-2xl shadow-2xl space-y-3 text-xs relative max-h-[90vh] overflow-y-auto">
+        <div className="planner-modal-overlay fixed inset-0 bg-black/60 backdrop-blur-sm flex z-50 animate-fade-in">
+          <div className="planner-modal-panel bg-white rounded-3xl border border-neutral-200 p-4 w-full max-w-2xl shadow-2xl space-y-3 text-xs relative">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
@@ -1431,7 +1432,7 @@ export default function TaskLibrary({
               {/* Left Column: Basic Details */}
               <div className="space-y-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务名称</label>
+                  <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">任务名称</label>
                   <input
                     type="text"
                     value={editTaskTitle}
@@ -1442,7 +1443,7 @@ export default function TaskLibrary({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">描述信息</label>
+                  <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">描述信息</label>
                   <textarea
                     value={editTaskDesc}
                     onChange={(e) => setEditTaskDesc(e.target.value)}
@@ -1453,8 +1454,8 @@ export default function TaskLibrary({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务分类</label>
-                    <select
+                    <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">任务分类</label>
+                    <Select
                       value={editTaskCatId}
                       onChange={(e) => setEditTaskCatId(e.target.value)}
                       className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
@@ -1463,12 +1464,12 @@ export default function TaskLibrary({
                       {categories.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">优先级</label>
-                    <select
+                    <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">优先级</label>
+                    <Select
                       value={editTaskUrgency}
                       onChange={(e) => setEditTaskUrgency(e.target.value as Urgency)}
                       className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold focus:border-blue-500 focus:outline-none cursor-pointer transition-all shadow-sm"
@@ -1477,7 +1478,7 @@ export default function TaskLibrary({
                       <option value="low">🟩 低</option>
                       <option value="medium">🟨 中</option>
                       <option value="high">🟥 高</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -1487,7 +1488,7 @@ export default function TaskLibrary({
                 
                 {/* Schedule Type Tabs */}
                 <div>
-                  <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">任务排期</label>
+                  <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">任务排期</label>
                   <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 rounded-xl border border-neutral-200/60">
                     {(
                       [
@@ -1501,7 +1502,7 @@ export default function TaskLibrary({
                         key={opt.value}
                         type="button"
                         onClick={() => setEditTaskScheduleType(opt.value)}
-                        className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        className={`py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                           editTaskScheduleType === opt.value
                             ? 'bg-white text-neutral-800 shadow-sm'
                             : 'text-neutral-500 hover:text-neutral-700'
@@ -1519,7 +1520,7 @@ export default function TaskLibrary({
                     <div className="space-y-2.5 w-full animate-fade-in">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
+                          <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">开始日期</label>
                           <PlannerDatePicker
                             value={editTaskDate}
                             ariaLabel="开始日期"
@@ -1532,7 +1533,7 @@ export default function TaskLibrary({
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
+                          <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">结束日期</label>
                           <PlannerDatePicker
                             value={editTaskEndDate}
                             ariaLabel="结束日期"
@@ -1548,7 +1549,7 @@ export default function TaskLibrary({
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">具体时间</label>
+                        <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">具体时间</label>
                         <div className="flex gap-2">
                           <input
                             type="time"
@@ -1573,7 +1574,7 @@ export default function TaskLibrary({
 
                   {editTaskScheduleType === 'week' && (
                     <div className="w-full animate-fade-in space-y-1">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
+                      <label className="text-[11px] font-bold text-neutral-500 block">选择日期定位至该周周一</label>
                       <PlannerDatePicker
                         value={editTaskScheduledWeek}
                         ariaLabel="选择日期定位至该周"
@@ -1594,7 +1595,7 @@ export default function TaskLibrary({
                         }}
                       />
                       {editTaskScheduledWeek && (
-                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                        <p className="text-[11px] text-blue-600 font-extrabold mt-1">
                           已选中：{getWeekOptionLabel(editTaskScheduledWeek)}
                         </p>
                       )}
@@ -1603,7 +1604,7 @@ export default function TaskLibrary({
 
                   {editTaskScheduleType === 'month' && (
                     <div className="w-full animate-fade-in space-y-1">
-                      <label className="text-[10px] font-bold text-neutral-500 block">选择月份</label>
+                      <label className="text-[11px] font-bold text-neutral-500 block">选择月份</label>
                       <PlannerDatePicker
                         mode="month"
                         value={editTaskScheduledMonth}
@@ -1611,7 +1612,7 @@ export default function TaskLibrary({
                         onChange={setEditTaskScheduledMonth}
                       />
                       {editTaskScheduledMonth && (
-                        <p className="text-[10px] text-blue-600 font-extrabold mt-1">
+                        <p className="text-[11px] text-blue-600 font-extrabold mt-1">
                           已选中：{getMonthOptionLabel(editTaskScheduledMonth, 100)}
                         </p>
                       )}
@@ -1625,8 +1626,8 @@ export default function TaskLibrary({
                 {editTaskScheduleType === 'date' && (
                   <div className="grid grid-cols-2 gap-2 border-t border-neutral-200/50 pt-2.5">
                     <div>
-                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">重复设置</label>
-                      <select
+                      <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">重复设置</label>
+                      <Select
                         value={editTaskRepeat}
                         onChange={(e) => setEditTaskRepeat(e.target.value as any)}
                         className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
@@ -1635,11 +1636,11 @@ export default function TaskLibrary({
                         <option value="daily">每天</option>
                         <option value="weekly">每周</option>
                         <option value="monthly">每月</option>
-                      </select>
+                      </Select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-neutral-500 block mb-0.5">提醒</label>
-                      <select
+                      <label className="text-[11px] font-bold text-neutral-500 block mb-0.5">提醒</label>
+                      <Select
                         value={editTaskReminder}
                         onChange={(e) => setEditTaskReminder(e.target.value as any)}
                         className="w-full py-2 px-2.5 bg-white border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold cursor-pointer focus:border-blue-500 focus:outline-none shadow-sm transition-all"
@@ -1649,7 +1650,7 @@ export default function TaskLibrary({
                         <option value="15m">15 分钟前</option>
                         <option value="1h">1 小时前</option>
                         <option value="1d">1 天前</option>
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 )}
