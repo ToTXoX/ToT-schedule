@@ -34,6 +34,10 @@ html {
   background: var(--app-bg);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
@@ -43,6 +47,31 @@ body {
     radial-gradient(circle at 12% -8%, rgba(87, 122, 226, 0.10), transparent 30%),
     radial-gradient(circle at 88% 6%, rgba(159, 181, 239, 0.12), transparent 27%),
     linear-gradient(180deg, #f7f8fb 0%, var(--app-bg) 72%);
+}
+
+html[data-surface="website"] {
+  background: #fffdfa;
+}
+
+html[data-surface="website"] body {
+  color: #18344d;
+  background: #fffdfa;
+}
+
+.surface-loading {
+  width: 36px;
+  height: 36px;
+  margin: calc(50vh - 18px) auto 0;
+  border: 3px solid rgba(65, 105, 225, 0.12);
+  border-top-color: #4169e1;
+  border-radius: 50%;
+  animation: surface-loading-spin 800ms linear infinite;
+}
+
+@keyframes surface-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 button,

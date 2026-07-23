@@ -12,6 +12,12 @@
 2. Run the app:
    `npm run dev`
 
+## 产品官网与 Vercel
+
+浏览器访问时会显示 ToT 产品官网，Tauri 桌面运行时仍显示日程应用。官网会从 GitHub 最新 Release 自动读取版本号，并把 Windows 与 macOS 下载按钮链接到对应安装包。
+
+在 Vercel 中导入本 GitHub 仓库即可发布；仓库根目录的 `vercel.json` 已配置 Vite 构建命令和 `dist` 输出目录，无需额外环境变量。
+
 ## 桌面应用（Tauri）
 
 - 开发运行：`npm run tauri:dev`
