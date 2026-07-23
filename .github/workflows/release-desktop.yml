@@ -1,4 +1,4 @@
-name: Release macOS arm64
+name: Release desktop
 
 on:
   workflow_dispatch:
@@ -9,10 +9,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  release:
-    name: Build and publish Apple Silicon release
+  macos:
+    name: Build macOS Apple Silicon release
     runs-on: macos-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -72,7 +79,7 @@ jobs:
         with:
           tagName: ${{ steps.version.outputs.tag }}
           releaseName: "ToT 日程 v${{ steps.version.outputs.version }}"
-          releaseBody: "ToT 日程 macOS Apple Silicon（M1 及以上）版本。"
+          releaseBody: "ToT 日程桌面版：macOS Apple Silicon（M1 及以上）和 Windows x64。"
           releaseDraft: true
           prerelease: false
           generateReleaseNotes: true
@@ -97,7 +104,70 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ steps.version.outputs.tag }}" "${{ steps.dmg.outputs.path }}" --clobber
 
+  windows:
+    name: Build Windows x64 release
+    needs: macos
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify updater signing secret
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Error "Missing GitHub Actions secret: TAURI_SIGNING_PRIVATE_KEY"
+            exit 1
+          }
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build and publish Tauri release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tagName: ${{ needs.macos.outputs.tag }}
+          releaseName: "ToT 日程 v${{ needs.macos.outputs.version }}"
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          updaterJsonPreferNsis: true
+          args: "--target x86_64-pc-windows-msvc --bundles nsis"
+
+  publish:
+    name: Publish desktop release
+    needs:
+      - macos
+      - windows
+    runs-on: ubuntu-latest
+    steps:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ steps.version.outputs.tag }}" --draft=false --latest
+        run: gh release edit "${{ needs.macos.outputs.tag }}" --repo "${{ github.repository }}" --draft=false --latest
