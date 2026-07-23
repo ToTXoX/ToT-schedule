@@ -79,7 +79,7 @@ jobs:
         with:
           tagName: ${{ steps.version.outputs.tag }}
           releaseName: "ToT 日程 v${{ steps.version.outputs.version }}"
-          releaseBody: "ToT 日程桌面版：macOS Apple Silicon（M1 及以上）和 Windows x64。"
+          releaseBody: "ToT 日程桌面版：macOS Apple Silicon、Windows 10/11 x64，以及单独的 Windows 7 Legacy x64。"
           releaseDraft: true
           prerelease: false
           generateReleaseNotes: true
@@ -105,7 +105,7 @@ jobs:
         run: gh release upload "${{ steps.version.outputs.tag }}" "${{ steps.dmg.outputs.path }}" --clobber
 
   windows:
-    name: Build Windows x64 release
+    name: Build Windows 10/11 x64 release
     needs: macos
     runs-on: windows-latest
     steps:
@@ -160,11 +160,123 @@ jobs:
           updaterJsonPreferNsis: true
           args: "--target x86_64-pc-windows-msvc --bundles nsis"
 
+  windows-legacy:
+    name: Build Windows 7 Legacy x64 release
+    needs:
+      - macos
+      - windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # The Win7 target is Tier 3 and has no prebuilt standard library.
+      # Rust 1.91 is the last toolchain version documented as successfully
+      # building its host tools, so pin the matching nightly and build std.
+      - name: Set up Windows 7 Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2025-08-15
+          components: rust-src
+
+      - name: Enable build-std for the Windows 7 target
+        shell: pwsh
+        run: |
+          $cargoDirectory = Join-Path $env:USERPROFILE ".cargo"
+          New-Item -ItemType Directory -Path $cargoDirectory -Force | Out-Null
+          @'
+          [unstable]
+          build-std = ["std", "panic_abort"]
+          '@ | Set-Content -Path (Join-Path $cargoDirectory "config.toml") -Encoding ascii
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify updater signing secret
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Error "Missing GitHub Actions secret: TAURI_SIGNING_PRIVATE_KEY"
+            exit 1
+          }
+
+      - name: Build Windows 7 Legacy installer
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2025-08-15
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: npm run tauri -- build --ci --target x86_64-win7-windows-msvc --config src-tauri/tauri.win7.conf.json --bundles nsis
+
+      - name: Prepare Windows 7 Legacy release assets
+        id: legacy-assets
+        shell: pwsh
+        run: |
+          $bundleDirectory = "src-tauri/target/x86_64-win7-windows-msvc/release/bundle/nsis"
+          $sourceInstaller = Get-ChildItem -Path $bundleDirectory -Filter "*setup.exe" -File |
+            Select-Object -First 1
+          if ($null -eq $sourceInstaller) {
+            Write-Error "Windows 7 Legacy NSIS installer was not found."
+            exit 1
+          }
+
+          $sourceSignature = "$($sourceInstaller.FullName).sig"
+          if (-not (Test-Path $sourceSignature)) {
+            Write-Error "Windows 7 Legacy updater signature was not found: $sourceSignature"
+            exit 1
+          }
+
+          $releaseDirectory = Join-Path $env:RUNNER_TEMP "tot-win7-release"
+          New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
+          $assetName = "ToT-Schedule_${{ needs.macos.outputs.version }}_Windows-7-Legacy-x64-setup.exe"
+          $installer = Join-Path $releaseDirectory $assetName
+          $signature = "$installer.sig"
+          $manifest = Join-Path $releaseDirectory "latest-win7.json"
+          Copy-Item $sourceInstaller.FullName $installer
+          Copy-Item $sourceSignature $signature
+
+          node scripts/create-win7-updater-manifest.mjs `
+            "${{ needs.macos.outputs.version }}" `
+            "${{ needs.macos.outputs.tag }}" `
+            "${{ github.repository }}" `
+            "$installer" `
+            "$signature" `
+            "$manifest"
+
+          "installer=$installer" >> $env:GITHUB_OUTPUT
+          "signature=$signature" >> $env:GITHUB_OUTPUT
+          "manifest=$manifest" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows 7 Legacy release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.macos.outputs.tag }}" `
+            "${{ steps.legacy-assets.outputs.installer }}" `
+            "${{ steps.legacy-assets.outputs.signature }}" `
+            "${{ steps.legacy-assets.outputs.manifest }}" `
+            --repo "${{ github.repository }}" `
+            --clobber
+
   publish:
     name: Publish desktop release
     needs:
       - macos
       - windows
+      - windows-legacy
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

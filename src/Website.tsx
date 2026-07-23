@@ -188,13 +188,24 @@ export default function Website() {
 
   const downloads = useMemo(() => {
     const assets = release?.assets ?? [];
-    const windowsAsset = findAsset(assets, name => name.endsWith('-setup.exe'));
+    const windowsAsset = findAsset(
+      assets,
+      name => name.endsWith('-setup.exe') && !name.includes('legacy'),
+    );
+    const windowsLegacyAsset = findAsset(
+      assets,
+      name => name.includes('windows-7-legacy') && name.endsWith('-setup.exe'),
+    );
     const macAsset = findAsset(assets, name => name.endsWith('.dmg'));
 
     return {
       windows: {
         url: windowsAsset?.browser_download_url ?? release?.html_url ?? RELEASES_URL,
         available: Boolean(windowsAsset),
+      } satisfies DownloadInfo,
+      windowsLegacy: {
+        url: windowsLegacyAsset?.browser_download_url ?? release?.html_url ?? RELEASES_URL,
+        available: Boolean(windowsLegacyAsset),
       } satisfies DownloadInfo,
       mac: {
         url: macAsset?.browser_download_url ?? release?.html_url ?? RELEASES_URL,
@@ -254,6 +265,14 @@ export default function Website() {
                 meta={downloads.mac.available ? `${versionLabel} · Apple Silicon` : '前往 GitHub 获取最新版'}
               />
             </div>
+            <a
+              className="website-legacy-download"
+              href={downloads.windowsLegacy.url}
+              rel="noreferrer"
+            >
+              仍在使用 Windows 7？下载 {versionLabel} Legacy x64 版
+              <span>安装时按需下载 WebView2 109</span>
+            </a>
             <div className="website-proof-row" aria-label="产品特点">
               <span><Check />免费使用</span>
               <span><Check />数据保存在本地</span>
@@ -342,6 +361,18 @@ export default function Website() {
               platform="macOS"
               meta={downloads.mac.available ? `${versionLabel} · Apple Silicon` : 'GitHub Release'}
             />
+            <a
+              className="website-legacy-download"
+              href={downloads.windowsLegacy.url}
+              rel="noreferrer"
+            >
+              Windows 7 Legacy x64
+              <span>
+                {downloads.windowsLegacy.available
+                  ? `${versionLabel} · 独立更新通道`
+                  : '前往 GitHub Release'}
+              </span>
+            </a>
           </div>
         </section>
       </main>

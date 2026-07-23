@@ -1,0 +1,24 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "ToT 日程 Legacy",
+  "build": {
+    "beforeBuildCommand": "npm run build:web:legacy"
+  },
+  "bundle": {
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "nsis": {
+        "installerHooks": "windows/win7-legacy-hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/ToTXoX/ToT-schedule/releases/latest/download/latest-win7.json"
+      ]
+    }
+  }
+}

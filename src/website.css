@@ -252,6 +252,35 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
+.website-legacy-download {
+  display: inline-flex;
+  margin-top: 16px;
+  align-items: center;
+  gap: 9px;
+  color: #587487 !important;
+  font-size: 11px;
+  font-weight: 750;
+  transition: color 160ms ease;
+}
+
+.website-legacy-download::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--website-coral);
+  content: "";
+}
+
+.website-legacy-download span {
+  color: #91a2ad;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.website-legacy-download:hover {
+  color: var(--website-coral) !important;
+}
+
 .website-proof-row {
   display: flex;
   margin-top: 24px;
@@ -931,6 +960,11 @@
   flex-direction: column;
 }
 
+.website-download-panel .website-legacy-download {
+  margin-top: 2px;
+  justify-content: center;
+}
+
 .website-footer {
   display: grid;
   width: min(1400px, calc(100% - 64px));
@@ -1107,6 +1141,11 @@
 
   .website-download-button {
     width: 100%;
+  }
+
+  .website-legacy-download {
+    flex-wrap: wrap;
+    line-height: 1.5;
   }
 
   .website-proof-row {
